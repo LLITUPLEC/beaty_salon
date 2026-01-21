@@ -1,66 +1,64 @@
 @echo off
-chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
 :: ============================================
-:: Git Push Script для Windows
-:: Использование: git-push.bat "сообщение коммита"
+:: Git Push Script for Windows
+:: Usage: git-push.bat "commit message"
 :: ============================================
 
 echo.
 echo ========================================
-echo 🚀 Git Push - Beauty Salon
+echo    Git Push - Beauty Salon
 echo ========================================
 echo.
 
-:: Проверяем, передано ли сообщение коммита
+:: Check if commit message is provided
 if "%~1"=="" (
-    set /p COMMIT_MSG="📝 Введите сообщение коммита: "
+    set /p COMMIT_MSG="Enter commit message: "
 ) else (
     set "COMMIT_MSG=%~1"
 )
 
 if "!COMMIT_MSG!"=="" (
-    echo ❌ Сообщение коммита не может быть пустым!
+    echo [ERROR] Commit message cannot be empty!
     pause
     exit /b 1
 )
 
-:: Добавляем все изменения
+:: Add all changes
 echo.
-echo 📦 Добавление файлов...
+echo [1/3] Adding files...
 git add .
 
-:: Проверяем, есть ли что коммитить
+:: Check if there's something to commit
 git diff --cached --quiet
 if %errorlevel%==0 (
     echo.
-    echo ⚠️  Нет изменений для коммита.
+    echo [INFO] No changes to commit.
     pause
     exit /b 0
 )
 
-:: Коммитим
+:: Commit
 echo.
-echo 💾 Создание коммита: "!COMMIT_MSG!"
+echo [2/3] Creating commit: "!COMMIT_MSG!"
 git commit -m "!COMMIT_MSG!"
 
-:: Пушим
+:: Push
 echo.
-echo ☁️  Отправка на GitHub...
+echo [3/3] Pushing to GitHub...
 git push
 
 if %errorlevel%==0 (
     echo.
     echo ========================================
-    echo ✅ Успешно отправлено!
+    echo    SUCCESS! Changes pushed.
     echo ========================================
 ) else (
     echo.
-    echo ❌ Ошибка при отправке.
-    echo Возможно, нужно сначала выполнить: git push -u origin master
+    echo [ERROR] Push failed.
+    echo Try: git push -u origin master
 )
 
 echo.
 pause
-
