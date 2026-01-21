@@ -58,7 +58,7 @@ if %errorlevel%==0 (
 ) else (
     echo.
     echo ❌ Ошибка при отправке.
-    echo Возможно, нужно сначала выполнить: git push -u origin main
+    echo Возможно, нужно сначала выполнить: git push -u origin master
 )
 
 echo.
