@@ -43,17 +43,18 @@ export function ServiceEditor({ service, onBack, onSave }: ServiceEditorProps) {
     try {
       const result = await getCategories();
       if (result.success && result.data) {
-        setCategories(result.data);
+        const categoriesData = result.data;
+        setCategories(categoriesData);
         
         // If editing, find category by name and set categoryId
         if (service?.category) {
-          const cat = result.data.find(c => c.name === service.category);
+          const cat = categoriesData.find(c => c.name === service.category);
           if (cat) {
             setFormData(prev => ({ ...prev, categoryId: cat.id }));
           }
-        } else if (result.data.length > 0) {
+        } else if (categoriesData.length > 0) {
           // Set first category as default for new service
-          setFormData(prev => ({ ...prev, categoryId: result.data[0].id }));
+          setFormData(prev => ({ ...prev, categoryId: categoriesData[0].id }));
         }
       }
     } catch (error) {
