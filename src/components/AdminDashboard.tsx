@@ -9,7 +9,10 @@ import {
   Scissors,
   TrendingUp,
   Plus,
-  Loader2
+  Loader2,
+  Trash2,
+  Edit,
+  FolderPlus
 } from 'lucide-react';
 import { Header } from './ui/Header';
 import { Tabs, TabContent } from './ui/Tabs';
@@ -19,31 +22,46 @@ import { Button } from './ui/Button';
 import { Input, Select } from './ui/Input';
 import { Booking, Master, Schedule, ScheduleFormData } from '@/types';
 import { formatPrice, formatDate } from '@/lib/utils';
-import { hapticFeedback, showAlert } from '@/lib/telegram';
+import { hapticFeedback, showAlert, showConfirm } from '@/lib/telegram';
 import {
   getAdminBookings,
   getMasters,
   getSchedules,
   getReports,
+  getCategories,
   createSchedule,
   createMaster,
+  deleteMaster,
+  updateMaster,
+  createCategory,
   BookingData,
   MasterData,
   ScheduleData,
-  ReportsData
+  ReportsData,
+  CategoryData
 } from '@/lib/api-client';
+
+interface MasterWithDetails extends Master {
+  nickname?: string | null;
+  fullName?: string;
+}
 
 export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('bookings');
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [masters, setMasters] = useState<Master[]>([]);
+  const [masters, setMasters] = useState<MasterWithDetails[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [categories, setCategories] = useState<CategoryData[]>([]);
   const [reports, setReports] = useState<ReportsData | null>(null);
   const [selectedMasterFilter, setSelectedMasterFilter] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
 
   // Form states
   const [newMasterTelegram, setNewMasterTelegram] = useState('');
+  const [newMasterNickname, setNewMasterNickname] = useState('');
+  const [newMasterSpecialization, setNewMasterSpecialization] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [editingMaster, setEditingMaster] = useState<MasterWithDetails | null>(null);
   const [scheduleForm, setScheduleForm] = useState<ScheduleFormData>({
     masterId: 0,
     date: '',
@@ -58,11 +76,12 @@ export function AdminDashboard() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [bookingsRes, mastersRes, schedulesRes, reportsRes] = await Promise.all([
+      const [bookingsRes, mastersRes, schedulesRes, reportsRes, categoriesRes] = await Promise.all([
         getAdminBookings(),
         getMasters(),
         getSchedules(),
-        getReports()
+        getReports(),
+        getCategories()
       ]);
 
       if (bookingsRes.success && bookingsRes.data) {
@@ -79,6 +98,10 @@ export function AdminDashboard() {
 
       if (reportsRes.success && reportsRes.data) {
         setReports(reportsRes.data);
+      }
+
+      if (categoriesRes.success && categoriesRes.data) {
+        setCategories(categoriesRes.data);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -102,9 +125,11 @@ export function AdminDashboard() {
     duration: data.duration,
   });
 
-  const mapMasterData = (data: MasterData): Master => ({
+  const mapMasterData = (data: MasterData): MasterWithDetails => ({
     id: data.id,
     name: data.name,
+    fullName: (data as any).fullName || data.name,
+    nickname: (data as any).nickname || null,
     telegram: data.telegram || '',
     telegram_id: parseInt(data.telegramId) || 0,
     specialization: data.specialization,
@@ -141,21 +166,83 @@ export function AdminDashboard() {
     : bookings.filter((b) => b.masterId === Number(selectedMasterFilter));
 
   const handleAddMaster = async () => {
-    if (!newMasterTelegram.trim()) return;
+    if (!newMasterTelegram.trim()) {
+      await showAlert('Введите Telegram ID');
+      return;
+    }
 
     const result = await createMaster({
       telegramId: newMasterTelegram.replace('@', ''),
-      name: 'Новый мастер',
-      specialization: 'Специалист',
+      nickname: newMasterNickname.trim() || undefined,
+      specialization: newMasterSpecialization.trim() || undefined,
     });
 
     if (result.success) {
       hapticFeedback('success');
       await loadData();
       setNewMasterTelegram('');
+      setNewMasterNickname('');
+      setNewMasterSpecialization('');
       await showAlert('Мастер добавлен!');
     } else {
       await showAlert(result.error?.message || 'Ошибка при добавлении мастера');
+    }
+  };
+
+  const handleDeleteMaster = async (master: MasterWithDetails) => {
+    const confirmed = await showConfirm(
+      `Удалить мастера ${master.name}? Роль изменится на "Клиент".`
+    );
+    
+    if (!confirmed) return;
+
+    const result = await deleteMaster(master.id);
+
+    if (result.success) {
+      hapticFeedback('success');
+      await loadData();
+      await showAlert('Мастер удалён');
+    } else {
+      await showAlert(result.error?.message || 'Ошибка при удалении');
+    }
+  };
+
+  const handleUpdateMaster = async () => {
+    if (!editingMaster) return;
+
+    const result = await updateMaster({
+      id: editingMaster.id,
+      nickname: editingMaster.nickname || undefined,
+      specialization: editingMaster.specialization || undefined,
+    });
+
+    if (result.success) {
+      hapticFeedback('success');
+      setEditingMaster(null);
+      await loadData();
+      await showAlert('Данные мастера обновлены');
+    } else {
+      await showAlert(result.error?.message || 'Ошибка при обновлении');
+    }
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) {
+      await showAlert('Введите название категории');
+      return;
+    }
+
+    const result = await createCategory({
+      name: newCategoryName.trim(),
+    });
+
+    if (result.success) {
+      hapticFeedback('success');
+      await loadData();
+      setNewCategoryName('');
+      await showAlert('Категория добавлена!');
+    } else {
+      await showAlert(result.error?.message || 'Ошибка при добавлении категории');
     }
   };
 
@@ -187,6 +274,7 @@ export function AdminDashboard() {
   const tabs = [
     { id: 'bookings', label: 'Записи' },
     { id: 'masters', label: 'Мастера' },
+    { id: 'categories', label: 'Категории' },
     { id: 'schedule', label: 'Расписание' },
     { id: 'reports', label: 'Отчёты' }
   ];
@@ -198,17 +286,30 @@ export function AdminDashboard() {
 
   const timeOptions = [
     { value: '09:00', label: '09:00' },
+    { value: '09:30', label: '09:30' },
     { value: '10:00', label: '10:00' },
+    { value: '10:30', label: '10:30' },
     { value: '11:00', label: '11:00' },
+    { value: '11:30', label: '11:30' },
     { value: '12:00', label: '12:00' },
+    { value: '12:30', label: '12:30' },
     { value: '13:00', label: '13:00' },
+    { value: '13:30', label: '13:30' },
     { value: '14:00', label: '14:00' },
+    { value: '14:30', label: '14:30' },
     { value: '15:00', label: '15:00' },
+    { value: '15:30', label: '15:30' },
     { value: '16:00', label: '16:00' },
+    { value: '16:30', label: '16:30' },
     { value: '17:00', label: '17:00' },
+    { value: '17:30', label: '17:30' },
     { value: '18:00', label: '18:00' },
+    { value: '18:30', label: '18:30' },
     { value: '19:00', label: '19:00' },
-    { value: '20:00', label: '20:00' }
+    { value: '19:30', label: '19:30' },
+    { value: '20:00', label: '20:00' },
+    { value: '20:30', label: '20:30' },
+    { value: '21:00', label: '21:00' }
   ];
 
   if (isLoading) {
@@ -334,22 +435,75 @@ export function AdminDashboard() {
                   Добавить мастера
                 </h3>
                 <p className="text-sm text-gray-500 mb-4">
-                  Назначьте нового мастера по Telegram ID
+                  Введите Telegram ID пользователя (он должен сначала открыть приложение)
                 </p>
-                <div className="flex gap-3">
+                <div className="space-y-3">
                   <Input
-                    placeholder="@telegram или ID"
+                    placeholder="Telegram ID (число)"
                     value={newMasterTelegram}
                     onChange={(e) => setNewMasterTelegram(e.target.value)}
-                    className="flex-1"
                   />
-                  <Button onClick={handleAddMaster}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input
+                      placeholder="Псевдоним (опционально)"
+                      value={newMasterNickname}
+                      onChange={(e) => setNewMasterNickname(e.target.value)}
+                    />
+                    <Input
+                      placeholder="Специализация"
+                      value={newMasterSpecialization}
+                      onChange={(e) => setNewMasterSpecialization(e.target.value)}
+                    />
+                  </div>
+                  <Button onClick={handleAddMaster} className="w-full">
                     <Plus className="h-4 w-4 mr-2" />
-                    Добавить
+                    Добавить мастера
                   </Button>
                 </div>
               </CardContent>
             </Card>
+
+            {/* Edit Master Modal */}
+            {editingMaster && (
+              <Card className="mb-6 border-amber-500 border-2">
+                <CardContent>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Редактирование: {editingMaster.fullName || editingMaster.name}
+                  </h3>
+                  <div className="space-y-3">
+                    <Input
+                      label="Псевдоним"
+                      placeholder="Имя для клиентов"
+                      value={editingMaster.nickname || ''}
+                      onChange={(e) => setEditingMaster({
+                        ...editingMaster,
+                        nickname: e.target.value
+                      })}
+                    />
+                    <Input
+                      label="Специализация"
+                      placeholder="Например: Стилист"
+                      value={editingMaster.specialization || ''}
+                      onChange={(e) => setEditingMaster({
+                        ...editingMaster,
+                        specialization: e.target.value
+                      })}
+                    />
+                    <div className="flex gap-3">
+                      <Button onClick={handleUpdateMaster} className="flex-1">
+                        Сохранить
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setEditingMaster(null)}
+                      >
+                        Отмена
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <div className="space-y-3">
               {masters.length === 0 ? (
@@ -362,20 +516,112 @@ export function AdminDashboard() {
                   <Card key={master.id}>
                     <CardContent>
                       <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-semibold text-gray-900">
-                            {master.name}
-                          </h3>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-gray-900">
+                              {master.name}
+                            </h3>
+                            {master.nickname && (
+                              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">
+                                псевдоним
+                              </span>
+                            )}
+                          </div>
+                          {master.fullName && master.nickname && (
+                            <p className="text-xs text-gray-400">
+                              Реальное имя: {master.fullName}
+                            </p>
+                          )}
                           <p className="text-sm text-gray-500">
                             {master.specialization}
                           </p>
-                          <p className="text-sm text-amber-600">{master.telegram || `ID: ${master.telegram_id}`}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-bold text-gray-900">
-                            {master.bookings}
+                          <p className="text-sm text-amber-600">
+                            ID: {master.telegram_id}
                           </p>
-                          <p className="text-sm text-gray-500">записей</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right mr-4">
+                            <p className="text-2xl font-bold text-gray-900">
+                              {master.bookings}
+                            </p>
+                            <p className="text-sm text-gray-500">записей</p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingMaster(master)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteMaster(master)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </TabContent>
+        )}
+
+        {/* Categories tab */}
+        {activeTab === 'categories' && (
+          <TabContent>
+            <Card className="mb-6">
+              <CardContent>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  <FolderPlus className="h-5 w-5 inline mr-2" />
+                  Добавить категорию
+                </h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Категории нужны для группировки услуг
+                </p>
+                <div className="flex gap-3">
+                  <Input
+                    placeholder="Название категории (например: Стрижки)"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button onClick={handleAddCategory}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Добавить
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-3">
+              {categories.length === 0 ? (
+                <div className="text-center py-12">
+                  <FolderPlus className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">Нет категорий</p>
+                  <p className="text-sm text-gray-400 mt-2">
+                    Добавьте категории, чтобы мастера могли создавать услуги
+                  </p>
+                </div>
+              ) : (
+                categories.map((category) => (
+                  <Card key={category.id}>
+                    <CardContent>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                            <Scissors className="h-5 w-5 text-amber-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-gray-900">
+                              {category.name}
+                            </h3>
+                            <p className="text-sm text-gray-500">ID: {category.id}</p>
+                          </div>
                         </div>
                       </div>
                     </CardContent>

@@ -39,6 +39,7 @@ model User {
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Связи для мастера
+  nickname       String?   // Псевдоним мастера для отображения клиентам
   specialization String?
   rating         Float     @default(5.0)
   

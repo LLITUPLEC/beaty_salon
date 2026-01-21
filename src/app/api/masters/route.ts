@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { withAuth, jsonResponse, errorResponse } from '@/lib/api-utils';
 import { UserRole } from '@prisma/client';
+import { notifyMasterRoleAssigned } from '@/lib/notifications';
 
 /**
  * GET /api/masters
@@ -19,6 +20,7 @@ export async function GET() {
       firstName: true,
       lastName: true,
       username: true,
+      nickname: true,
       specialization: true,
       rating: true,
       photoUrl: true,
@@ -34,7 +36,10 @@ export async function GET() {
   return jsonResponse(
     masters.map(m => ({
       id: m.id,
-      name: `${m.firstName} ${m.lastName || ''}`.trim(),
+      // Используем nickname если есть, иначе firstName + lastName
+      name: m.nickname || `${m.firstName} ${m.lastName || ''}`.trim(),
+      fullName: `${m.firstName} ${m.lastName || ''}`.trim(),
+      nickname: m.nickname,
       telegram: m.username ? `@${m.username}` : null,
       telegramId: m.telegramId.toString(),
       specialization: m.specialization || 'Мастер',
@@ -48,40 +53,142 @@ export async function GET() {
 /**
  * POST /api/masters
  * Добавить мастера (только для админа)
+ * Пользователь с таким telegram_id должен существовать в БД
  */
 export async function POST(request: NextRequest) {
   return withAuth(request, async () => {
     const body = await request.json();
-    const { telegramId, name, specialization } = body;
+    const { telegramId, nickname, specialization } = body;
 
-    if (!telegramId || !name) {
-      return errorResponse('INVALID_DATA', 'Missing required fields');
+    if (!telegramId) {
+      return errorResponse('INVALID_DATA', 'Telegram ID обязателен');
     }
 
-    const tgId = BigInt(telegramId);
+    let tgId: bigint;
+    try {
+      tgId = BigInt(telegramId);
+    } catch {
+      return errorResponse('INVALID_DATA', 'Некорректный Telegram ID');
+    }
 
-    // Ищем существующего пользователя или создаем нового
-    const master = await prisma.user.upsert({
+    // Проверяем существует ли пользователь с таким telegram_id
+    const existingUser = await prisma.user.findUnique({
+      where: { telegramId: tgId }
+    });
+
+    if (!existingUser) {
+      return errorResponse(
+        'USER_NOT_FOUND', 
+        'Пользователь с таким Telegram ID не найден. Он должен сначала открыть приложение.'
+      );
+    }
+
+    if (existingUser.role === UserRole.MASTER) {
+      return errorResponse('ALREADY_MASTER', 'Пользователь уже является мастером');
+    }
+
+    if (existingUser.role === UserRole.ADMIN) {
+      return errorResponse('IS_ADMIN', 'Нельзя назначить админа мастером');
+    }
+
+    // Обновляем роль пользователя на MASTER
+    const master = await prisma.user.update({
       where: { telegramId: tgId },
-      update: {
+      data: {
         role: UserRole.MASTER,
-        specialization: specialization || 'Мастер',
-      },
-      create: {
-        telegramId: tgId,
-        firstName: name.split(' ')[0],
-        lastName: name.split(' ').slice(1).join(' ') || null,
-        role: UserRole.MASTER,
+        nickname: nickname || null,
         specialization: specialization || 'Мастер',
       }
     });
 
+    // Отправляем уведомление новому мастеру
+    notifyMasterRoleAssigned({
+      masterTelegramId: master.telegramId,
+      masterName: master.firstName,
+    }).catch(err => console.error('Error notifying new master:', err));
+
     return jsonResponse({
       id: master.id,
-      name: `${master.firstName} ${master.lastName || ''}`.trim(),
+      name: master.nickname || `${master.firstName} ${master.lastName || ''}`.trim(),
       telegramId: master.telegramId.toString(),
       specialization: master.specialization,
     });
   }, [UserRole.ADMIN]);
 }
 
+/**
+ * DELETE /api/masters
+ * Удалить мастера (сменить роль на CLIENT)
+ */
+export async function DELETE(request: NextRequest) {
+  return withAuth(request, async () => {
+    const { searchParams } = new URL(request.url);
+    const masterId = searchParams.get('id');
+
+    if (!masterId) {
+      return errorResponse('INVALID_DATA', 'ID мастера обязателен');
+    }
+
+    const master = await prisma.user.findUnique({
+      where: { id: parseInt(masterId, 10) }
+    });
+
+    if (!master) {
+      return errorResponse('NOT_FOUND', 'Мастер не найден', 404);
+    }
+
+    if (master.role !== UserRole.MASTER) {
+      return errorResponse('NOT_MASTER', 'Пользователь не является мастером');
+    }
+
+    // Меняем роль на CLIENT
+    await prisma.user.update({
+      where: { id: master.id },
+      data: {
+        role: UserRole.CLIENT,
+        specialization: null,
+        nickname: null,
+      }
+    });
+
+    return jsonResponse({ message: 'Мастер удалён' });
+  }, [UserRole.ADMIN]);
+}
+
+/**
+ * PUT /api/masters
+ * Обновить данные мастера (nickname, specialization)
+ */
+export async function PUT(request: NextRequest) {
+  return withAuth(request, async () => {
+    const body = await request.json();
+    const { id, nickname, specialization } = body;
+
+    if (!id) {
+      return errorResponse('INVALID_DATA', 'ID мастера обязателен');
+    }
+
+    const master = await prisma.user.findUnique({
+      where: { id }
+    });
+
+    if (!master || master.role !== UserRole.MASTER) {
+      return errorResponse('NOT_FOUND', 'Мастер не найден', 404);
+    }
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: {
+        ...(nickname !== undefined && { nickname }),
+        ...(specialization !== undefined && { specialization }),
+      }
+    });
+
+    return jsonResponse({
+      id: updated.id,
+      name: updated.nickname || `${updated.firstName} ${updated.lastName || ''}`.trim(),
+      nickname: updated.nickname,
+      specialization: updated.specialization,
+    });
+  }, [UserRole.ADMIN]);
+}

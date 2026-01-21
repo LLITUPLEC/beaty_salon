@@ -117,6 +117,13 @@ export async function getCategories() {
   return apiFetch<CategoryData[]>('/categories');
 }
 
+export async function createCategory(data: { name: string; icon?: string }) {
+  return apiFetch<CategoryData>('/categories', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 // ============ Masters ============
 
 export interface MasterData {
@@ -136,12 +143,29 @@ export async function getMasters() {
 
 export async function createMaster(data: {
   telegramId: string;
-  name: string;
+  nickname?: string;
   specialization?: string;
 }) {
   return apiFetch<MasterData>('/masters', {
     method: 'POST',
     body: JSON.stringify(data),
+  });
+}
+
+export async function updateMaster(data: {
+  id: number;
+  nickname?: string;
+  specialization?: string;
+}) {
+  return apiFetch<MasterData>('/masters', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteMaster(id: number) {
+  return apiFetch<{ message: string }>(`/masters?id=${id}`, {
+    method: 'DELETE',
   });
 }
 
