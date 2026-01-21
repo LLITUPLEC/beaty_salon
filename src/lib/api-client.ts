@@ -1,0 +1,304 @@
+import { getInitData } from './telegram';
+
+const API_BASE = '/api';
+
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+  };
+}
+
+/**
+ * Базовый fetch с авторизацией Telegram
+ */
+async function apiFetch<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<ApiResponse<T>> {
+  const initData = getInitData();
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+
+  // Добавляем Telegram initData для авторизации
+  if (initData) {
+    (headers as Record<string, string>)['x-telegram-init-data'] = initData;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('API Error:', error);
+    return {
+      success: false,
+      error: {
+        code: 'NETWORK_ERROR',
+        message: 'Network error occurred',
+      },
+    };
+  }
+}
+
+// ============ Auth ============
+
+export async function authenticateUser() {
+  return apiFetch<{
+    id: number;
+    telegramId: string;
+    firstName: string;
+    lastName: string | null;
+    username: string | null;
+    role: string;
+  }>('/auth/telegram', { method: 'POST' });
+}
+
+// ============ Services ============
+
+export interface ServiceData {
+  id: number;
+  name: string;
+  category: string;
+  categoryId: number;
+  price: number;
+  duration: number;
+  masterId?: number;
+  masterName?: string;
+}
+
+export async function getServices() {
+  return apiFetch<ServiceData[]>('/services');
+}
+
+export async function createService(data: {
+  name: string;
+  categoryId: number;
+  price: number;
+  duration: number;
+}) {
+  return apiFetch<ServiceData>('/services', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateService(id: number, data: Partial<ServiceData>) {
+  return apiFetch<ServiceData>(`/services/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteService(id: number) {
+  return apiFetch<{ message: string }>(`/services/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// ============ Categories ============
+
+export interface CategoryData {
+  id: number;
+  name: string;
+  icon?: string;
+}
+
+export async function getCategories() {
+  return apiFetch<CategoryData[]>('/categories');
+}
+
+// ============ Masters ============
+
+export interface MasterData {
+  id: number;
+  name: string;
+  telegram: string | null;
+  telegramId: string;
+  specialization: string;
+  rating: number;
+  avatar?: string;
+  bookings: number;
+}
+
+export async function getMasters() {
+  return apiFetch<MasterData[]>('/masters');
+}
+
+export async function createMaster(data: {
+  telegramId: string;
+  name: string;
+  specialization?: string;
+}) {
+  return apiFetch<MasterData>('/masters', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export interface AvailabilityData {
+  date: string;
+  availableSlots: string[];
+  message?: string;
+}
+
+export async function getMasterAvailability(
+  masterId: number,
+  date: string,
+  serviceId?: number
+) {
+  const params = new URLSearchParams({ date });
+  if (serviceId) params.set('serviceId', String(serviceId));
+  
+  return apiFetch<AvailabilityData>(
+    `/masters/${masterId}/availability?${params.toString()}`
+  );
+}
+
+// ============ Bookings ============
+
+export interface BookingData {
+  id: number;
+  client: string;
+  clientId: number;
+  master: string;
+  masterId: number;
+  service: string;
+  serviceId: number;
+  date: string;
+  time: string;
+  status: string;
+  price: number;
+  duration: number;
+}
+
+export async function getBookings(status?: string) {
+  const params = status ? `?status=${status}` : '';
+  return apiFetch<BookingData[]>(`/bookings${params}`);
+}
+
+export async function createBooking(data: {
+  masterId: number;
+  serviceId: number;
+  date: string;
+  time: string;
+}) {
+  return apiFetch<{ id: number; status: string; message: string }>('/bookings', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateBookingStatus(id: number, status: string) {
+  return apiFetch<{ id: number; status: string; message: string }>(
+    `/bookings/${id}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    }
+  );
+}
+
+export async function cancelBooking(id: number) {
+  return apiFetch<{ message: string }>(`/bookings/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// ============ Admin ============
+
+export async function getAdminBookings(filters?: {
+  masterId?: number;
+  status?: string;
+  date?: string;
+}) {
+  const params = new URLSearchParams();
+  if (filters?.masterId) params.set('masterId', String(filters.masterId));
+  if (filters?.status) params.set('status', filters.status);
+  if (filters?.date) params.set('date', filters.date);
+  
+  const query = params.toString();
+  return apiFetch<BookingData[]>(`/admin/bookings${query ? `?${query}` : ''}`);
+}
+
+export interface ScheduleData {
+  id: number;
+  master: string;
+  masterId: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
+export async function getSchedules(filters?: {
+  masterId?: number;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const params = new URLSearchParams();
+  if (filters?.masterId) params.set('masterId', String(filters.masterId));
+  if (filters?.startDate) params.set('startDate', filters.startDate);
+  if (filters?.endDate) params.set('endDate', filters.endDate);
+  
+  const query = params.toString();
+  return apiFetch<ScheduleData[]>(`/admin/schedule${query ? `?${query}` : ''}`);
+}
+
+export async function createSchedule(data: {
+  masterId: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+}) {
+  return apiFetch<{ id: number; message: string }>('/admin/schedule', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export interface ReportsData {
+  serviceReports: Array<{
+    category: string;
+    count: number;
+    revenue: number;
+  }>;
+  masterReports: Array<{
+    masterId: number;
+    name: string;
+    bookings: number;
+    revenue: number;
+    rating: number;
+  }>;
+  stats: {
+    totalBookings: number;
+    completedBookings: number;
+    cancelledBookings: number;
+    totalRevenue: number;
+    averageCheck: number;
+    newClients: number;
+    repeatClients: number;
+    repeatRate: number;
+  };
+}
+
+export async function getReports(filters?: {
+  startDate?: string;
+  endDate?: string;
+}) {
+  const params = new URLSearchParams();
+  if (filters?.startDate) params.set('startDate', filters.startDate);
+  if (filters?.endDate) params.set('endDate', filters.endDate);
+  
+  const query = params.toString();
+  return apiFetch<ReportsData>(`/admin/reports${query ? `?${query}` : ''}`);
+}
+

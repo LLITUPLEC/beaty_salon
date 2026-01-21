@@ -1,0 +1,136 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Роли пользователей
+enum UserRole {
+  CLIENT
+  MASTER
+  ADMIN
+}
+
+// Статусы записей
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+// Пользователь (клиент, мастер или админ)
+model User {
+  id          Int       @id @default(autoincrement())
+  telegramId  BigInt    @unique @map("telegram_id")
+  username    String?
+  firstName   String    @map("first_name")
+  lastName    String?   @map("last_name")
+  photoUrl    String?   @map("photo_url")
+  role        UserRole  @default(CLIENT)
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Связи для мастера
+  specialization String?
+  rating         Float     @default(5.0)
+  
+  // Записи как клиент
+  clientBookings Booking[] @relation("ClientBookings")
+  
+  // Записи как мастер
+  masterBookings Booking[] @relation("MasterBookings")
+  
+  // Услуги мастера
+  services       Service[]
+  
+  // Расписание мастера
+  schedules      Schedule[]
+
+  @@map("users")
+}
+
+// Категория услуги
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  icon      String?
+  services  Service[]
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@map("categories")
+}
+
+// Услуга
+model Service {
+  id         Int       @id @default(autoincrement())
+  name       String
+  price      Int
+  duration   Int       // в минутах
+  isActive   Boolean   @default(true) @map("is_active")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  // Категория
+  categoryId Int       @map("category_id")
+  category   Category  @relation(fields: [categoryId], references: [id])
+  
+  // Мастер (опционально - если услуга привязана к конкретному мастеру)
+  masterId   Int?      @map("master_id")
+  master     User?     @relation(fields: [masterId], references: [id])
+  
+  // Записи на эту услугу
+  bookings   Booking[]
+
+  @@map("services")
+}
+
+// Запись на услугу
+model Booking {
+  id        Int           @id @default(autoincrement())
+  date      DateTime      @db.Date
+  time      String        // "14:00"
+  status    BookingStatus @default(PENDING)
+  price     Int
+  notes     String?
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  // Клиент
+  clientId  Int           @map("client_id")
+  client    User          @relation("ClientBookings", fields: [clientId], references: [id])
+  
+  // Мастер
+  masterId  Int           @map("master_id")
+  master    User          @relation("MasterBookings", fields: [masterId], references: [id])
+  
+  // Услуга
+  serviceId Int           @map("service_id")
+  service   Service       @relation(fields: [serviceId], references: [id])
+
+  @@map("bookings")
+}
+
+// Расписание мастера
+model Schedule {
+  id        Int      @id @default(autoincrement())
+  date      DateTime @db.Date
+  startTime String   @map("start_time") // "09:00"
+  endTime   String   @map("end_time")   // "18:00"
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Мастер
+  masterId  Int      @map("master_id")
+  master    User     @relation(fields: [masterId], references: [id])
+
+  @@unique([masterId, date])
+  @@map("schedules")
+}

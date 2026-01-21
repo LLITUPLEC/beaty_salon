@@ -1,36 +1,339 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Beauty Salon - Telegram Web App
 
-## Getting Started
+Полнофункциональное приложение для салона красоты, созданное как Telegram Web App с PostgreSQL базой данных.
 
-First, run the development server:
+## 🚀 Быстрый старт
+
+### 1. Установка зависимостей
+
+```bash
+cd app
+npm install
+```
+
+### 2. Настройка окружения
+
+Создайте файл `.env` в папке `app`:
+
+```env
+# Database - замените на вашу PostgreSQL строку подключения
+DATABASE_URL="postgresql://user:password@localhost:5432/beauty_salon?schema=public"
+
+# Telegram Bot Token (получите у @BotFather)
+TELEGRAM_BOT_TOKEN="ваш_токен_бота"
+
+# Admin Telegram ID - этот пользователь получит роль ADMIN
+ADMIN_TELEGRAM_ID="668127354"
+```
+
+### 3. Инициализация базы данных
+
+```bash
+# Генерация Prisma клиента
+npm run db:generate
+
+# Применение миграций (создание таблиц)
+npm run db:push
+
+# Заполнение тестовыми данными
+npm run db:seed
+```
+
+### 4. Запуск в режиме разработки
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Приложение будет доступно на http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📦 Интеграция с Telegram
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Шаг 1: Создание бота
 
-## Learn More
+1. Откройте @BotFather в Telegram
+2. Отправьте `/newbot` и следуйте инструкциям
+3. Сохраните полученный токен в `.env`
 
-To learn more about Next.js, take a look at the following resources:
+### Шаг 2: Настройка Web App
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Отправьте @BotFather команду `/mybots`
+2. Выберите вашего бота → Bot Settings → Menu Button
+3. Укажите URL вашего задеплоенного приложения
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Шаг 3: Деплой
 
-## Deploy on Vercel
+Рекомендуемые платформы:
+- **Vercel** (бесплатно, автоматический деплой)
+- **Railway** (бесплатно, есть PostgreSQL)
+- **Render** (бесплатно, есть PostgreSQL)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+#### Деплой на VPS (Ubuntu/Debian) + Nginx Proxy Manager
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**1. Подготовка сервера:**
+
+```bash
+# Установка Node.js 20+
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Установка PM2 для автозапуска
+sudo npm install -g pm2
+
+# Установка PostgreSQL (если нет)
+sudo apt install -y postgresql postgresql-contrib
+```
+
+**2. Настройка PostgreSQL:**
+
+```bash
+sudo -u postgres psql
+
+# В консоли PostgreSQL:
+CREATE DATABASE beauty_salon;
+CREATE USER beauty_user WITH ENCRYPTED PASSWORD 'your_secure_password';
+GRANT ALL PRIVILEGES ON DATABASE beauty_salon TO beauty_user;
+\q
+```
+
+**3. Клонирование и настройка проекта:**
+
+```bash
+cd /var/www
+git clone your-repo.git beauty-salon
+cd beauty-salon/app
+
+# Создание .env
+cat > .env << EOF
+DATABASE_URL="postgresql://beauty_user:your_secure_password@localhost:5432/beauty_salon"
+TELEGRAM_BOT_TOKEN="ваш_токен"
+ADMIN_TELEGRAM_ID="668127354"
+WEB_APP_URL="https://prokrust-game.ru"
+EOF
+
+# Установка зависимостей
+npm install
+
+# Миграции и seed
+npm run db:push
+npm run db:seed
+
+# Сборка
+npm run build
+```
+
+**4. Запуск через PM2:**
+
+```bash
+# Next.js приложение (порт 3000)
+pm2 start npm --name "beauty-salon-web" -- start
+
+# Telegram бот
+pm2 start bot.js --name "beauty-salon-bot"
+
+# Автозапуск при перезагрузке
+pm2 save
+pm2 startup
+```
+
+**5. Настройка Nginx Proxy Manager:**
+
+1. Добавьте новый Proxy Host:
+   - **Domain Names:** `prokrust-game.ru`
+   - **Scheme:** `http`
+   - **Forward Hostname/IP:** `127.0.0.1` (или IP сервера)
+   - **Forward Port:** `3000`
+   - **Block Common Exploits:** ✅
+   - **Websockets Support:** ✅
+
+2. Вкладка **SSL**:
+   - **SSL Certificate:** Request a new SSL Certificate
+   - **Force SSL:** ✅
+   - **HTTP/2 Support:** ✅
+
+**6. Проверка:**
+
+```bash
+# Статус процессов
+pm2 status
+
+# Логи
+pm2 logs beauty-salon-web
+pm2 logs beauty-salon-bot
+
+# Перезапуск
+pm2 restart all
+```
+
+#### Деплой на Vercel + Neon (альтернатива)
+
+1. Создайте базу данных на [neon.tech](https://neon.tech)
+2. Подключите репозиторий к [vercel.com](https://vercel.com)
+3. Добавьте переменные окружения в Vercel:
+   - `DATABASE_URL` - строка подключения от Neon
+   - `TELEGRAM_BOT_TOKEN` - токен бота
+   - `ADMIN_TELEGRAM_ID` - ваш Telegram ID
+
+```bash
+# После деплоя выполните миграции
+npx prisma db push
+npx prisma db seed
+```
+
+> ⚠️ При использовании Vercel бот нужно запустить отдельно на VPS или сервисе типа Railway.
+
+### Шаг 4: Настройка команды /start
+
+#### Вариант A: Без кода — через @BotFather
+
+1. Откройте @BotFather → `/mybots` → выберите бота
+2. **Bot Settings** → **Menu Button** → **Configure menu button**
+3. Отправьте URL: `https://prokrust-game.ru` (ваш домен)
+4. Отправьте текст: `💅 Открыть салон`
+
+#### Вариант B: С ботом — кнопка по /start
+
+В проекте уже есть готовый бот `bot.js`. Запустите его:
+
+```bash
+# Разово для теста
+npm run bot
+
+# Или через PM2 для продакшена
+npm run bot:pm2
+```
+
+Бот отвечает на команды:
+- `/start` - кнопка для открытия Web App
+- `/help` - справка
+- `/contact` - контакты
+
+## 📁 Структура проекта
+
+```
+app/
+├── prisma/
+│   ├── schema.prisma    # Схема базы данных
+│   └── seed.ts          # Тестовые данные
+├── src/
+│   ├── app/
+│   │   ├── api/         # API routes
+│   │   │   ├── auth/telegram/     # Авторизация
+│   │   │   ├── services/          # CRUD услуг
+│   │   │   ├── bookings/          # CRUD записей
+│   │   │   ├── masters/           # Мастера + доступность
+│   │   │   ├── categories/        # Категории
+│   │   │   └── admin/             # Админ API
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   └── globals.css
+│   ├── components/
+│   │   ├── ui/              # UI компоненты
+│   │   ├── ClientDashboard.tsx
+│   │   ├── MasterDashboard.tsx
+│   │   └── AdminDashboard.tsx
+│   ├── lib/
+│   │   ├── prisma.ts        # Prisma клиент
+│   │   ├── telegram.ts      # Telegram SDK
+│   │   ├── telegram-auth.ts # Валидация данных TG
+│   │   ├── api-utils.ts     # Утилиты API
+│   │   └── api-client.ts    # Клиент для фронтенда
+│   └── types/
+│       └── index.ts
+└── package.json
+```
+
+## 🔐 Авторизация
+
+Приложение использует официальный механизм авторизации Telegram Web Apps:
+
+1. Telegram передает `initData` при открытии Web App
+2. Сервер проверяет подпись с помощью токена бота
+3. Пользователь автоматически создается/обновляется в БД
+4. Роль определяется по `telegram_id`:
+   - `ADMIN_TELEGRAM_ID` из `.env` → роль `ADMIN`
+   - Остальные → роль `CLIENT`
+   - Админ может назначить мастеров через интерфейс
+
+## 👥 Роли
+
+### CLIENT (по умолчанию)
+- Просмотр услуг
+- Запись на услуги
+- Просмотр своих записей
+
+### MASTER
+- Всё от CLIENT
+- Просмотр записей к себе
+- Подтверждение/отклонение записей
+- Управление своими услугами
+
+### ADMIN
+- Всё от MASTER
+- Просмотр всех записей
+- Управление мастерами
+- Создание расписания
+- Отчёты и статистика
+
+## 🛠 Команды
+
+```bash
+# Разработка
+npm run dev           # Запуск dev сервера
+
+# База данных
+npm run db:generate   # Генерация Prisma клиента
+npm run db:push       # Применение схемы к БД
+npm run db:migrate    # Создание миграции
+npm run db:seed       # Заполнение тестовыми данными
+npm run db:studio     # Открыть Prisma Studio
+npm run db:reset      # Сбросить БД
+
+# Production
+npm run build         # Сборка
+npm start            # Запуск production
+```
+
+## 📊 API Endpoints
+
+### Аутентификация
+- `POST /api/auth/telegram` - Авторизация через Telegram
+
+### Услуги
+- `GET /api/services` - Список услуг
+- `POST /api/services` - Создать услугу (MASTER, ADMIN)
+- `PUT /api/services/:id` - Обновить услугу
+- `DELETE /api/services/:id` - Удалить услугу
+
+### Категории
+- `GET /api/categories` - Список категорий
+- `POST /api/categories` - Создать категорию (ADMIN)
+
+### Мастера
+- `GET /api/masters` - Список мастеров
+- `POST /api/masters` - Добавить мастера (ADMIN)
+- `GET /api/masters/:id/availability` - Доступные слоты
+
+### Записи
+- `GET /api/bookings` - Записи пользователя
+- `POST /api/bookings` - Создать запись
+- `PUT /api/bookings/:id` - Обновить статус
+- `DELETE /api/bookings/:id` - Отменить запись
+
+### Админ
+- `GET /api/admin/bookings` - Все записи
+- `GET /api/admin/schedule` - Расписание
+- `POST /api/admin/schedule` - Создать смену
+- `GET /api/admin/reports` - Отчёты
+
+## 🔧 Технологии
+
+- **Framework:** Next.js 16 (App Router)
+- **Language:** TypeScript
+- **Database:** PostgreSQL + Prisma ORM
+- **Styling:** Tailwind CSS v4
+- **Auth:** Telegram Web App SDK
+
+## 📝 Лицензия
+
+MIT
