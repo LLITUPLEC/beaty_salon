@@ -14,10 +14,9 @@ import { hapticFeedback, showAlert } from '@/lib/telegram';
 
 interface ClientDashboardProps {
   userName: string;
-  onLogout: () => void;
 }
 
-export function ClientDashboard({ userName, onLogout }: ClientDashboardProps) {
+export function ClientDashboard({ userName }: ClientDashboardProps) {
   const [activeTab, setActiveTab] = useState('services');
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [bookings, setBookings] = useState<Booking[]>(mockClientBookings);
@@ -81,7 +80,7 @@ export function ClientDashboard({ userName, onLogout }: ClientDashboardProps) {
   if (selectedService) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Header onLogout={onLogout} />
+        <Header />
         <main className="container mx-auto px-4 py-6 max-w-2xl">
           <BookingForm
             service={selectedService}
@@ -95,7 +94,7 @@ export function ClientDashboard({ userName, onLogout }: ClientDashboardProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header onLogout={onLogout} />
+      <Header />
       
       <main className="container mx-auto px-4 py-6 max-w-2xl">
         {/* Welcome section */}

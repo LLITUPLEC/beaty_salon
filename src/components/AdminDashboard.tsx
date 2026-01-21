@@ -29,11 +29,7 @@ import {
 } from '@/lib/mockData';
 import { hapticFeedback, showAlert } from '@/lib/telegram';
 
-interface AdminDashboardProps {
-  onLogout: () => void;
-}
-
-export function AdminDashboard({ onLogout }: AdminDashboardProps) {
+export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('bookings');
   const [bookings] = useState<Booking[]>(mockAllBookings);
   const [masters, setMasters] = useState<Master[]>(mockMasters);
@@ -129,7 +125,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header onLogout={onLogout} />
+      <Header />
 
       <main className="container mx-auto px-4 py-6 max-w-4xl">
         {/* Header section */}

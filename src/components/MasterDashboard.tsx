@@ -15,10 +15,9 @@ import { hapticFeedback, showAlert, showConfirm } from '@/lib/telegram';
 
 interface MasterDashboardProps {
   masterName: string;
-  onLogout: () => void;
 }
 
-export function MasterDashboard({ masterName, onLogout }: MasterDashboardProps) {
+export function MasterDashboard({ masterName }: MasterDashboardProps) {
   const [activeTab, setActiveTab] = useState('bookings');
   const [bookings, setBookings] = useState<Booking[]>(mockMasterBookings);
   const [services, setServices] = useState<Service[]>(mockServices);
@@ -94,7 +93,7 @@ export function MasterDashboard({ masterName, onLogout }: MasterDashboardProps) 
   if (isAddingService || editingService) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Header onLogout={onLogout} />
+        <Header />
         <main className="container mx-auto px-4 py-6 max-w-2xl">
           <ServiceEditor
             service={editingService}
@@ -111,7 +110,7 @@ export function MasterDashboard({ masterName, onLogout }: MasterDashboardProps) 
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header onLogout={onLogout} />
+      <Header />
       
       <main className="container mx-auto px-4 py-6 max-w-2xl">
         {/* Header section */}

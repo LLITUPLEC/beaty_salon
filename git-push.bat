@@ -47,7 +47,7 @@ git commit -m "!COMMIT_MSG!"
 :: Push
 echo.
 echo [3/3] Pushing to GitHub...
-git push
+git push -u origin master
 
 if %errorlevel%==0 (
     echo.
