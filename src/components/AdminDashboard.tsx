@@ -29,16 +29,22 @@ import {
   getSchedules,
   getReports,
   getCategories,
+  getServices,
   createSchedule,
   createMaster,
   deleteMaster,
   updateMaster,
   createCategory,
+  updateCategory,
+  deleteCategory,
+  assignServiceToMaster,
+  removeServiceFromMaster,
   BookingData,
   MasterData,
   ScheduleData,
   ReportsData,
-  CategoryData
+  CategoryData,
+  ServiceData
 } from '@/lib/api-client';
 
 interface MasterWithDetails extends Master {
@@ -47,12 +53,17 @@ interface MasterWithDetails extends Master {
   canCreateServices?: boolean;
 }
 
+interface CategoryWithCount extends CategoryData {
+  servicesCount?: number;
+}
+
 export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('bookings');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [masters, setMasters] = useState<MasterWithDetails[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [categories, setCategories] = useState<CategoryData[]>([]);
+  const [categories, setCategories] = useState<CategoryWithCount[]>([]);
+  const [services, setServices] = useState<ServiceData[]>([]);
   const [reports, setReports] = useState<ReportsData | null>(null);
   const [selectedMasterFilter, setSelectedMasterFilter] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -64,12 +75,17 @@ export function AdminDashboard() {
   const [newMasterCanCreate, setNewMasterCanCreate] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [editingMaster, setEditingMaster] = useState<MasterWithDetails | null>(null);
+  const [editingCategory, setEditingCategory] = useState<CategoryWithCount | null>(null);
   const [scheduleForm, setScheduleForm] = useState<ScheduleFormData>({
     masterId: 0,
     date: '',
     startTime: '09:00',
     endTime: '18:00'
   });
+  
+  // Services management
+  const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
+  const [selectedMasterForService, setSelectedMasterForService] = useState<string>('');
   
   // Booking filters
   const [fromDate, setFromDate] = useState(new Date().toISOString().split('T')[0]);
@@ -82,12 +98,13 @@ export function AdminDashboard() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [bookingsRes, mastersRes, schedulesRes, reportsRes, categoriesRes] = await Promise.all([
+      const [bookingsRes, mastersRes, schedulesRes, reportsRes, categoriesRes, servicesRes] = await Promise.all([
         getAdminBookings(),
         getMasters(),
         getSchedules(),
         getReports(),
-        getCategories()
+        getCategories(),
+        getServices()
       ]);
 
       if (bookingsRes.success && bookingsRes.data) {
@@ -108,6 +125,10 @@ export function AdminDashboard() {
 
       if (categoriesRes.success && categoriesRes.data) {
         setCategories(categoriesRes.data);
+      }
+
+      if (servicesRes.success && servicesRes.data) {
+        setServices(servicesRes.data);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -276,6 +297,80 @@ export function AdminDashboard() {
     }
   };
 
+  const handleUpdateCategory = async () => {
+    if (!editingCategory) return;
+
+    const result = await updateCategory({
+      id: editingCategory.id,
+      name: editingCategory.name,
+    });
+
+    if (result.success) {
+      hapticFeedback('success');
+      setEditingCategory(null);
+      await loadData();
+      await showAlert('Категория обновлена');
+    } else {
+      await showAlert(result.error?.message || 'Ошибка при обновлении');
+    }
+  };
+
+  const handleDeleteCategory = async (category: CategoryWithCount) => {
+    if (category.servicesCount && category.servicesCount > 0) {
+      await showAlert(`Невозможно удалить категорию с ${category.servicesCount} услугами`);
+      return;
+    }
+
+    const confirmed = await showConfirm(`Удалить категорию "${category.name}"?`);
+    if (!confirmed) return;
+
+    const result = await deleteCategory(category.id);
+
+    if (result.success) {
+      hapticFeedback('success');
+      await loadData();
+      await showAlert('Категория удалена');
+    } else {
+      await showAlert(result.error?.message || 'Ошибка при удалении');
+    }
+  };
+
+  const handleAssignService = async () => {
+    if (!selectedServiceId || !selectedMasterForService) {
+      await showAlert('Выберите услугу и мастера');
+      return;
+    }
+
+    const result = await assignServiceToMaster({
+      serviceId: selectedServiceId,
+      masterId: parseInt(selectedMasterForService),
+    });
+
+    if (result.success) {
+      hapticFeedback('success');
+      await loadData();
+      setSelectedServiceId(null);
+      setSelectedMasterForService('');
+      await showAlert('Услуга назначена мастеру');
+    } else {
+      await showAlert(result.error?.message || 'Ошибка при назначении');
+    }
+  };
+
+  const handleRemoveServiceFromMaster = async (serviceId: number, masterId: number) => {
+    const confirmed = await showConfirm('Убрать услугу у мастера?');
+    if (!confirmed) return;
+
+    const result = await removeServiceFromMaster({ serviceId, masterId });
+
+    if (result.success) {
+      hapticFeedback('success');
+      await loadData();
+    } else {
+      await showAlert(result.error?.message || 'Ошибка');
+    }
+  };
+
   const handleCreateSchedule = async () => {
     if (!scheduleForm.masterId || !scheduleForm.date) return;
 
@@ -304,6 +399,7 @@ export function AdminDashboard() {
   const tabs = [
     { id: 'bookings', label: 'Записи' },
     { id: 'masters', label: 'Мастера' },
+    { id: 'services', label: 'Услуги' },
     { id: 'categories', label: 'Категории' },
     { id: 'schedule', label: 'Расписание' },
     { id: 'reports', label: 'Отчёты' }
@@ -422,15 +518,18 @@ export function AdminDashboard() {
                   />
                 </div>
               </div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showCompletedBookings}
-                  onChange={(e) => setShowCompletedBookings(e.target.checked)}
-                  className="w-4 h-4 text-amber-500 rounded border-gray-300 focus:ring-amber-500"
-                />
-                <span className="text-sm text-gray-600">Только завершённые/отменённые</span>
-              </label>
+              {/* Стилизованный toggle-фильтр */}
+              <button
+                onClick={() => setShowCompletedBookings(!showCompletedBookings)}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                  showCompletedBookings
+                    ? 'gold-gradient text-white shadow-sm'
+                    : 'bg-white border border-gray-200 text-gray-600 hover:border-amber-300'
+                }`}
+              >
+                <Clock className="h-4 w-4" />
+                Только завершённые/отменённые
+              </button>
             </div>
 
             <div className="space-y-3">
@@ -505,15 +604,19 @@ export function AdminDashboard() {
                       onChange={(e) => setNewMasterSpecialization(e.target.value)}
                     />
                   </div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={newMasterCanCreate}
-                      onChange={(e) => setNewMasterCanCreate(e.target.checked)}
-                      className="w-4 h-4 text-amber-500 rounded border-gray-300 focus:ring-amber-500"
-                    />
-                    <span className="text-sm text-gray-600">Разрешить создавать услуги</span>
-                  </label>
+                  {/* Стилизованный switch для разрешения создавать услуги */}
+                  <button
+                    type="button"
+                    onClick={() => setNewMasterCanCreate(!newMasterCanCreate)}
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                      newMasterCanCreate
+                        ? 'gold-gradient text-white shadow-sm'
+                        : 'bg-gray-100 border border-gray-200 text-gray-600 hover:border-amber-300'
+                    }`}
+                  >
+                    <Scissors className="h-4 w-4" />
+                    Разрешить создавать услуги
+                  </button>
                   <Button onClick={handleAddMaster} className="w-full">
                     <Plus className="h-4 w-4 mr-2" />
                     Добавить мастера
@@ -548,18 +651,22 @@ export function AdminDashboard() {
                         specialization: e.target.value
                       })}
                     />
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editingMaster.canCreateServices || false}
-                        onChange={(e) => setEditingMaster({
-                          ...editingMaster,
-                          canCreateServices: e.target.checked
-                        })}
-                        className="w-4 h-4 text-amber-500 rounded border-gray-300 focus:ring-amber-500"
-                      />
-                      <span className="text-sm text-gray-600">Разрешить создавать услуги</span>
-                    </label>
+                    {/* Стилизованный switch для разрешения создавать услуги */}
+                    <button
+                      type="button"
+                      onClick={() => setEditingMaster({
+                        ...editingMaster,
+                        canCreateServices: !editingMaster.canCreateServices
+                      })}
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                        editingMaster.canCreateServices
+                          ? 'gold-gradient text-white shadow-sm'
+                          : 'bg-gray-100 border border-gray-200 text-gray-600 hover:border-amber-300'
+                      }`}
+                    >
+                      <Scissors className="h-4 w-4" />
+                      Разрешить создавать услуги
+                    </button>
                     <div className="flex gap-3">
                       <Button onClick={handleUpdateMaster} className="flex-1">
                         Сохранить
@@ -642,6 +749,108 @@ export function AdminDashboard() {
           </TabContent>
         )}
 
+        {/* Services tab */}
+        {activeTab === 'services' && (
+          <TabContent>
+            <Card className="mb-6">
+              <CardContent>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  <Scissors className="h-5 w-5 inline mr-2" />
+                  Назначить услугу мастеру
+                </h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Выберите услугу и мастера для назначения
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <Select
+                    label="Услуга"
+                    options={services.map(s => ({ value: s.id, label: `${s.name} (${s.category})` }))}
+                    value={selectedServiceId || ''}
+                    onChange={(e) => setSelectedServiceId(Number(e.target.value) || null)}
+                    placeholder="Выберите услугу"
+                  />
+                  <Select
+                    label="Мастер"
+                    options={masters.map(m => ({ value: m.id, label: m.name }))}
+                    value={selectedMasterForService}
+                    onChange={(e) => setSelectedMasterForService(e.target.value)}
+                    placeholder="Выберите мастера"
+                  />
+                  <div className="flex items-end">
+                    <Button onClick={handleAssignService} className="w-full">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Назначить
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Все услуги и их мастера
+              </h3>
+              {services.length === 0 ? (
+                <div className="text-center py-12">
+                  <Scissors className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">Нет услуг</p>
+                  <p className="text-sm text-gray-400 mt-2">
+                    Мастера с разрешением могут создавать услуги
+                  </p>
+                </div>
+              ) : (
+                services.map((service) => (
+                  <Card key={service.id}>
+                    <CardContent>
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide">
+                            {service.category}
+                          </p>
+                          <h3 className="font-semibold text-gray-900">
+                            {service.name}
+                          </h3>
+                          <p className="text-sm text-amber-600">
+                            {service.price} ₽ • {service.duration} мин
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-sm text-gray-500 mb-2">
+                          Мастера ({service.masters?.length || 0}):
+                        </p>
+                        {service.masters && service.masters.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {service.masters.map((master) => (
+                              <span
+                                key={master.id}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-700 rounded-full text-sm"
+                              >
+                                <User className="h-3 w-3" />
+                                {master.name}
+                                <button
+                                  onClick={() => handleRemoveServiceFromMaster(service.id, master.id)}
+                                  className="ml-1 text-amber-500 hover:text-red-500"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-400 italic">
+                            Не назначены мастера
+                          </p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </TabContent>
+        )}
+
         {/* Categories tab */}
         {activeTab === 'categories' && (
           <TabContent>
@@ -669,6 +878,39 @@ export function AdminDashboard() {
               </CardContent>
             </Card>
 
+            {/* Edit Category Modal */}
+            {editingCategory && (
+              <Card className="mb-6 border-amber-500 border-2">
+                <CardContent>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Редактирование категории
+                  </h3>
+                  <div className="space-y-3">
+                    <Input
+                      label="Название"
+                      placeholder="Название категории"
+                      value={editingCategory.name}
+                      onChange={(e) => setEditingCategory({
+                        ...editingCategory,
+                        name: e.target.value
+                      })}
+                    />
+                    <div className="flex gap-3">
+                      <Button onClick={handleUpdateCategory} className="flex-1">
+                        Сохранить
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setEditingCategory(null)}
+                      >
+                        Отмена
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <div className="space-y-3">
               {categories.length === 0 ? (
                 <div className="text-center py-12">
@@ -691,8 +933,28 @@ export function AdminDashboard() {
                             <h3 className="font-semibold text-gray-900">
                               {category.name}
                             </h3>
-                            <p className="text-sm text-gray-500">ID: {category.id}</p>
+                            <p className="text-sm text-gray-500">
+                              {category.servicesCount || 0} услуг
+                            </p>
                           </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingCategory(category)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteCategory(category)}
+                            className="text-red-500 hover:text-red-700"
+                            disabled={(category.servicesCount || 0) > 0}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                     </CardContent>

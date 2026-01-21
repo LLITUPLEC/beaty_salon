@@ -123,6 +123,7 @@ export interface CategoryData {
   id: number;
   name: string;
   icon?: string;
+  servicesCount?: number;
 }
 
 export async function getCategories() {
@@ -133,6 +134,38 @@ export async function createCategory(data: { name: string; icon?: string }) {
   return apiFetch<CategoryData>('/categories', {
     method: 'POST',
     body: JSON.stringify(data),
+  });
+}
+
+export async function updateCategory(data: { id: number; name?: string; icon?: string }) {
+  return apiFetch<CategoryData>('/categories', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteCategory(id: number) {
+  return apiFetch<{ message: string }>(`/categories?id=${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// ============ Master Services ============
+
+export async function getMasterServices(masterId: number) {
+  return apiFetch<ServiceData[]>(`/masters/${masterId}/services`);
+}
+
+export async function assignServiceToMaster(data: { masterId: number; serviceId: number }) {
+  return apiFetch<{ message: string }>('/masters/services', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function removeServiceFromMaster(data: { masterId: number; serviceId: number }) {
+  return apiFetch<{ message: string }>(`/masters/services?masterId=${data.masterId}&serviceId=${data.serviceId}`, {
+    method: 'DELETE',
   });
 }
 

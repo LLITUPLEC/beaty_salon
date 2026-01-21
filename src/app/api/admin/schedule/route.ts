@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         master: {
-          select: { id: true, firstName: true, lastName: true }
+          select: { id: true, firstName: true, lastName: true, nickname: true }
         }
       },
       orderBy: [
@@ -44,7 +44,8 @@ export async function GET(request: NextRequest) {
     return jsonResponse(
       schedules.map(s => ({
         id: s.id,
-        master: `${s.master.firstName} ${s.master.lastName || ''}`.trim(),
+        // Используем nickname если есть
+        master: s.master.nickname || `${s.master.firstName} ${s.master.lastName || ''}`.trim(),
         masterId: s.masterId,
         date: s.date.toISOString().split('T')[0],
         startTime: s.startTime,

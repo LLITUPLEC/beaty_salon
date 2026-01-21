@@ -222,22 +222,25 @@ export function MasterDashboard({ masterName, masterId, canCreateServices = fals
           activeTab={activeTab}
           onTabChange={setActiveTab}
           className="mb-6"
+          fullWidth
         />
 
         {/* Bookings tab */}
         {activeTab === 'bookings' && (
           <TabContent>
-            {/* Show completed filter */}
+            {/* Show completed filter - стилизованный toggle */}
             <div className="mb-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showCompleted}
-                  onChange={(e) => setShowCompleted(e.target.checked)}
-                  className="w-4 h-4 text-amber-500 rounded border-gray-300 focus:ring-amber-500"
-                />
-                <span className="text-sm text-gray-600">Показать завершённые</span>
-              </label>
+              <button
+                onClick={() => setShowCompleted(!showCompleted)}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                  showCompleted
+                    ? 'gold-gradient text-white shadow-sm'
+                    : 'bg-white border border-gray-200 text-gray-600 hover:border-amber-300'
+                }`}
+              >
+                <Clock className="h-4 w-4" />
+                Показать завершённые
+              </button>
             </div>
 
             <div className="space-y-3">

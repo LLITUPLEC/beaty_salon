@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
           select: { id: true, firstName: true, lastName: true }
         },
         master: {
-          select: { id: true, firstName: true, lastName: true }
+          select: { id: true, firstName: true, lastName: true, nickname: true }
         },
         service: {
           select: { id: true, name: true, duration: true }
@@ -52,7 +52,8 @@ export async function GET(request: NextRequest) {
         id: b.id,
         client: `${b.client.firstName} ${b.client.lastName || ''}`.trim(),
         clientId: b.clientId,
-        master: `${b.master.firstName} ${b.master.lastName || ''}`.trim(),
+        // Используем nickname мастера если есть
+        master: b.master.nickname || `${b.master.firstName} ${b.master.lastName || ''}`.trim(),
         masterId: b.masterId,
         service: b.service.name,
         serviceId: b.serviceId,
