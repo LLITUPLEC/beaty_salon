@@ -44,6 +44,7 @@ import {
 interface MasterWithDetails extends Master {
   nickname?: string | null;
   fullName?: string;
+  canCreateServices?: boolean;
 }
 
 export function AdminDashboard() {
@@ -60,6 +61,7 @@ export function AdminDashboard() {
   const [newMasterTelegram, setNewMasterTelegram] = useState('');
   const [newMasterNickname, setNewMasterNickname] = useState('');
   const [newMasterSpecialization, setNewMasterSpecialization] = useState('');
+  const [newMasterCanCreate, setNewMasterCanCreate] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [editingMaster, setEditingMaster] = useState<MasterWithDetails | null>(null);
   const [scheduleForm, setScheduleForm] = useState<ScheduleFormData>({
@@ -68,6 +70,10 @@ export function AdminDashboard() {
     startTime: '09:00',
     endTime: '18:00'
   });
+  
+  // Booking filters
+  const [fromDate, setFromDate] = useState(new Date().toISOString().split('T')[0]);
+  const [showCompletedBookings, setShowCompletedBookings] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -128,14 +134,15 @@ export function AdminDashboard() {
   const mapMasterData = (data: MasterData): MasterWithDetails => ({
     id: data.id,
     name: data.name,
-    fullName: (data as any).fullName || data.name,
-    nickname: (data as any).nickname || null,
+    fullName: data.fullName || data.name,
+    nickname: data.nickname || null,
     telegram: data.telegram || '',
     telegram_id: parseInt(data.telegramId) || 0,
     specialization: data.specialization,
     rating: data.rating || 5.0,
     bookings: data.bookings || 0,
     active: true,
+    canCreateServices: data.canCreateServices || false,
   });
 
   const mapScheduleData = (data: ScheduleData): Schedule => ({
@@ -161,9 +168,29 @@ export function AdminDashboard() {
   const serviceReports = reports?.serviceReports || [];
   const masterReports = reports?.masterReports || [];
 
-  const filteredBookings = selectedMasterFilter === 'all'
-    ? bookings
-    : bookings.filter((b) => b.masterId === Number(selectedMasterFilter));
+  // Filter bookings
+  const filteredBookings = bookings.filter((b) => {
+    // Master filter
+    if (selectedMasterFilter !== 'all' && b.masterId !== Number(selectedMasterFilter)) {
+      return false;
+    }
+    
+    // Date filter
+    if (fromDate && b.date < fromDate) {
+      return false;
+    }
+    
+    // Completed filter
+    const isCompleted = b.status === 'completed' || b.status === 'cancelled';
+    if (showCompletedBookings && !isCompleted) {
+      return false;
+    }
+    if (!showCompletedBookings && isCompleted) {
+      return false;
+    }
+    
+    return true;
+  });
 
   const handleAddMaster = async () => {
     if (!newMasterTelegram.trim()) {
@@ -175,6 +202,7 @@ export function AdminDashboard() {
       telegramId: newMasterTelegram.replace('@', ''),
       nickname: newMasterNickname.trim() || undefined,
       specialization: newMasterSpecialization.trim() || undefined,
+      canCreateServices: newMasterCanCreate,
     });
 
     if (result.success) {
@@ -183,6 +211,7 @@ export function AdminDashboard() {
       setNewMasterTelegram('');
       setNewMasterNickname('');
       setNewMasterSpecialization('');
+      setNewMasterCanCreate(false);
       await showAlert('Мастер добавлен!');
     } else {
       await showAlert(result.error?.message || 'Ошибка при добавлении мастера');
@@ -214,6 +243,7 @@ export function AdminDashboard() {
       id: editingMaster.id,
       nickname: editingMaster.nickname || undefined,
       specialization: editingMaster.specialization || undefined,
+      canCreateServices: editingMaster.canCreateServices,
     });
 
     if (result.success) {
@@ -371,16 +401,36 @@ export function AdminDashboard() {
         {/* Bookings tab */}
         {activeTab === 'bookings' && (
           <TabContent>
-            <div className="mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500">Фильтр по мастеру:</span>
-                <Select
-                  options={masterOptions}
-                  value={selectedMasterFilter}
-                  onChange={(e) => setSelectedMasterFilter(e.target.value)}
-                  className="w-48"
-                />
+            <div className="mb-4 space-y-3">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">Мастер:</span>
+                  <Select
+                    options={masterOptions}
+                    value={selectedMasterFilter}
+                    onChange={(e) => setSelectedMasterFilter(e.target.value)}
+                    className="w-40"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">С даты:</span>
+                  <Input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="w-40"
+                  />
+                </div>
               </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showCompletedBookings}
+                  onChange={(e) => setShowCompletedBookings(e.target.checked)}
+                  className="w-4 h-4 text-amber-500 rounded border-gray-300 focus:ring-amber-500"
+                />
+                <span className="text-sm text-gray-600">Только завершённые/отменённые</span>
+              </label>
             </div>
 
             <div className="space-y-3">
@@ -455,6 +505,15 @@ export function AdminDashboard() {
                       onChange={(e) => setNewMasterSpecialization(e.target.value)}
                     />
                   </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newMasterCanCreate}
+                      onChange={(e) => setNewMasterCanCreate(e.target.checked)}
+                      className="w-4 h-4 text-amber-500 rounded border-gray-300 focus:ring-amber-500"
+                    />
+                    <span className="text-sm text-gray-600">Разрешить создавать услуги</span>
+                  </label>
                   <Button onClick={handleAddMaster} className="w-full">
                     <Plus className="h-4 w-4 mr-2" />
                     Добавить мастера
@@ -489,6 +548,18 @@ export function AdminDashboard() {
                         specialization: e.target.value
                       })}
                     />
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingMaster.canCreateServices || false}
+                        onChange={(e) => setEditingMaster({
+                          ...editingMaster,
+                          canCreateServices: e.target.checked
+                        })}
+                        className="w-4 h-4 text-amber-500 rounded border-gray-300 focus:ring-amber-500"
+                      />
+                      <span className="text-sm text-gray-600">Разрешить создавать услуги</span>
+                    </label>
                     <div className="flex gap-3">
                       <Button onClick={handleUpdateMaster} className="flex-1">
                         Сохранить

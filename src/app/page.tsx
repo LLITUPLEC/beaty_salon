@@ -19,6 +19,8 @@ interface AuthenticatedUser {
   lastName: string | null;
   username: string | null;
   role: UserRole;
+  nickname?: string | null;
+  canCreateServices?: boolean;
 }
 
 export default function Home() {
@@ -85,8 +87,14 @@ export default function Home() {
   }
 
   // Show dashboard based on role
-  if (role === 'master') {
-    return <MasterDashboard masterName={userName} />;
+  if (role === 'master' && authenticatedUser) {
+    return (
+      <MasterDashboard 
+        masterName={authenticatedUser.nickname || userName} 
+        masterId={authenticatedUser.id}
+        canCreateServices={authenticatedUser.canCreateServices}
+      />
+    );
   }
 
   if (role === 'admin') {

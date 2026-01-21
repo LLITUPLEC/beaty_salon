@@ -39,9 +39,10 @@ model User {
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Связи для мастера
-  nickname       String?   // Псевдоним мастера для отображения клиентам
-  specialization String?
-  rating         Float     @default(5.0)
+  nickname         String?   // Псевдоним мастера для отображения клиентам
+  specialization   String?
+  rating           Float     @default(5.0)
+  canCreateServices Boolean  @default(false) @map("can_create_services") // Разрешение создавать услуги
   
   // Записи как клиент
   clientBookings Booking[] @relation("ClientBookings")
@@ -49,13 +50,29 @@ model User {
   // Записи как мастер
   masterBookings Booking[] @relation("MasterBookings")
   
-  // Услуги мастера
-  services       Service[]
+  // Услуги созданные мастером
+  createdServices Service[] @relation("ServiceCreator")
+  
+  // Услуги которые мастер может оказывать (many-to-many)
+  masterServices MasterService[]
   
   // Расписание мастера
   schedules      Schedule[]
 
   @@map("users")
+}
+
+// Связь мастер-услуга (какой мастер может оказывать какую услугу)
+model MasterService {
+  id        Int      @id @default(autoincrement())
+  masterId  Int      @map("master_id")
+  serviceId Int      @map("service_id")
+  master    User     @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([masterId, serviceId])
+  @@map("master_services")
 }
 
 // Категория услуги
@@ -83,9 +100,12 @@ model Service {
   categoryId Int       @map("category_id")
   category   Category  @relation(fields: [categoryId], references: [id])
   
-  // Мастер (опционально - если услуга привязана к конкретному мастеру)
-  masterId   Int?      @map("master_id")
-  master     User?     @relation(fields: [masterId], references: [id])
+  // Кто создал услугу (мастер или админ)
+  creatorId  Int?      @map("creator_id")
+  creator    User?     @relation("ServiceCreator", fields: [creatorId], references: [id])
+  
+  // Мастера которые могут оказывать эту услугу (many-to-many)
+  masters    MasterService[]
   
   // Записи на эту услугу
   bookings   Booking[]

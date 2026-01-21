@@ -19,6 +19,8 @@ export async function POST(request: NextRequest) {
     lastName: auth.user.lastName,
     username: auth.user.username,
     role: auth.user.role.toLowerCase(),
+    nickname: auth.user.nickname,
+    canCreateServices: auth.user.canCreateServices,
   });
 }
 

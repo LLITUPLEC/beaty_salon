@@ -72,12 +72,24 @@ export interface ServiceData {
   categoryId: number;
   price: number;
   duration: number;
-  masterId?: number;
-  masterName?: string;
+  masters?: Array<{
+    id: number;
+    name: string;
+    rating?: number;
+    bookings?: number;
+  }>;
 }
 
-export async function getServices() {
-  return apiFetch<ServiceData[]>('/services');
+export async function getServices(params?: { categoryId?: number; masterId?: number }) {
+  const searchParams = new URLSearchParams();
+  if (params?.categoryId) searchParams.set('categoryId', String(params.categoryId));
+  if (params?.masterId) searchParams.set('masterId', String(params.masterId));
+  const query = searchParams.toString();
+  return apiFetch<ServiceData[]>(`/services${query ? `?${query}` : ''}`);
+}
+
+export async function getServiceMasters(serviceId: number) {
+  return apiFetch<MasterData[]>(`/services/${serviceId}/masters`);
 }
 
 export async function createService(data: {
@@ -129,12 +141,16 @@ export async function createCategory(data: { name: string; icon?: string }) {
 export interface MasterData {
   id: number;
   name: string;
+  fullName?: string;
+  nickname?: string | null;
   telegram: string | null;
   telegramId: string;
   specialization: string;
   rating: number;
   avatar?: string;
   bookings: number;
+  canCreateServices?: boolean;
+  hasAvailability?: boolean;
 }
 
 export async function getMasters() {
@@ -145,6 +161,7 @@ export async function createMaster(data: {
   telegramId: string;
   nickname?: string;
   specialization?: string;
+  canCreateServices?: boolean;
 }) {
   return apiFetch<MasterData>('/masters', {
     method: 'POST',
@@ -156,6 +173,7 @@ export async function updateMaster(data: {
   id: number;
   nickname?: string;
   specialization?: string;
+  canCreateServices?: boolean;
 }) {
   return apiFetch<MasterData>('/masters', {
     method: 'PUT',
@@ -205,18 +223,27 @@ export interface BookingData {
   duration: number;
 }
 
-export async function getBookings(status?: string) {
-  const params = status ? `?status=${status}` : '';
-  return apiFetch<BookingData[]>(`/bookings${params}`);
+export async function getBookings(params?: { 
+  status?: string; 
+  showCompleted?: boolean;
+  fromDate?: string;
+}) {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set('status', params.status);
+  if (params?.showCompleted) searchParams.set('showCompleted', 'true');
+  if (params?.fromDate) searchParams.set('fromDate', params.fromDate);
+  const query = searchParams.toString();
+  return apiFetch<BookingData[]>(`/bookings${query ? `?${query}` : ''}`);
 }
 
 export async function createBooking(data: {
-  masterId: number;
+  masterId?: number;
   serviceId: number;
   date: string;
   time: string;
+  anyMaster?: boolean;
 }) {
-  return apiFetch<{ id: number; status: string; message: string }>('/bookings', {
+  return apiFetch<{ id: number; status: string; masterName?: string; message: string }>('/bookings', {
     method: 'POST',
     body: JSON.stringify(data),
   });

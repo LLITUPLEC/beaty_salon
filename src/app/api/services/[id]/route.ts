@@ -8,17 +8,72 @@ interface RouteParams {
 }
 
 /**
+ * GET /api/services/[id]
+ * Получить услугу с мастерами
+ */
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  const { id } = await params;
+  const serviceId = parseInt(id, 10);
+
+  const service = await prisma.service.findUnique({
+    where: { id: serviceId },
+    include: {
+      category: true,
+      masters: {
+        include: {
+          master: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              nickname: true,
+              rating: true,
+              _count: {
+                select: { masterBookings: true }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!service) {
+    return errorResponse('NOT_FOUND', 'Service not found', 404);
+  }
+
+  return jsonResponse({
+    id: service.id,
+    name: service.name,
+    category: service.category.name,
+    categoryId: service.categoryId,
+    price: service.price,
+    duration: service.duration,
+    masters: service.masters.map(ms => ({
+      id: ms.master.id,
+      name: ms.master.nickname || `${ms.master.firstName} ${ms.master.lastName || ''}`.trim(),
+      rating: ms.master.rating,
+      bookings: ms.master._count.masterBookings,
+    })),
+  });
+}
+
+/**
  * PUT /api/services/[id]
- * Обновить услугу
+ * Обновить услугу (только админ)
  */
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   
   return withAuth(request, async (user) => {
+    // Только админ может редактировать услуги
+    if (user.role !== UserRole.ADMIN) {
+      return errorResponse('PERMISSION_DENIED', 'Only admin can edit services', 403);
+    }
+
     const serviceId = parseInt(id, 10);
     const body = await request.json();
 
-    // Проверяем существование услуги
     const existing = await prisma.service.findUnique({
       where: { id: serviceId }
     });
@@ -27,11 +82,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return errorResponse('NOT_FOUND', 'Service not found', 404);
     }
 
-    // Мастер может редактировать только свои услуги
-    if (user.role === UserRole.MASTER && existing.masterId !== user.id) {
-      return errorResponse('PERMISSION_DENIED', 'Cannot edit this service', 403);
-    }
-
+    // Обновляем услугу
     const service = await prisma.service.update({
       where: { id: serviceId },
       data: {
@@ -43,6 +94,24 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       include: { category: true }
     });
 
+    // Если указаны мастера - обновляем связи
+    if (body.masterIds !== undefined && Array.isArray(body.masterIds)) {
+      // Удаляем старые связи
+      await prisma.masterService.deleteMany({
+        where: { serviceId }
+      });
+      
+      // Создаём новые
+      if (body.masterIds.length > 0) {
+        await prisma.masterService.createMany({
+          data: body.masterIds.map((masterId: number) => ({
+            masterId,
+            serviceId,
+          }))
+        });
+      }
+    }
+
     return jsonResponse({
       id: service.id,
       name: service.name,
@@ -50,17 +119,22 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       price: service.price,
       duration: service.duration,
     });
-  }, [UserRole.MASTER, UserRole.ADMIN]);
+  }, [UserRole.ADMIN]);
 }
 
 /**
  * DELETE /api/services/[id]
- * Удалить услугу
+ * Удалить услугу (только админ)
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   
   return withAuth(request, async (user) => {
+    // Только админ может удалять услуги
+    if (user.role !== UserRole.ADMIN) {
+      return errorResponse('PERMISSION_DENIED', 'Only admin can delete services', 403);
+    }
+
     const serviceId = parseInt(id, 10);
 
     const existing = await prisma.service.findUnique({
@@ -71,9 +145,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return errorResponse('NOT_FOUND', 'Service not found', 404);
     }
 
-    if (user.role === UserRole.MASTER && existing.masterId !== user.id) {
-      return errorResponse('PERMISSION_DENIED', 'Cannot delete this service', 403);
-    }
+    // Удаляем связи с мастерами
+    await prisma.masterService.deleteMany({
+      where: { serviceId }
+    });
 
     // Soft delete
     await prisma.service.update({
@@ -82,6 +157,5 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     });
 
     return jsonResponse({ message: 'Service deleted' });
-  }, [UserRole.MASTER, UserRole.ADMIN]);
+  }, [UserRole.ADMIN]);
 }
-

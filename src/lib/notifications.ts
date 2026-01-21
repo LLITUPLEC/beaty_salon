@@ -45,6 +45,57 @@ async function sendTelegramMessage({ chatId, text, parseMode = 'Markdown' }: Sen
   }
 }
 
+const WEB_APP_URL = process.env.WEB_APP_URL || 'https://prokrust-game.ru';
+
+/**
+ * Отправить сообщение с инлайн-кнопкой Web App
+ */
+async function sendTelegramMessageWithButton(params: {
+  chatId: string;
+  text: string;
+  buttonText: string;
+  bookingId: number;
+}): Promise<boolean> {
+  if (!BOT_TOKEN) {
+    console.error('TELEGRAM_BOT_TOKEN not configured');
+    return false;
+  }
+
+  try {
+    const response = await fetch(`${TELEGRAM_API}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: params.chatId,
+        text: params.text,
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: params.buttonText,
+                web_app: { url: `${WEB_APP_URL}?booking=${params.bookingId}` }
+              }
+            ]
+          ]
+        }
+      }),
+    });
+
+    const result = await response.json();
+    
+    if (!result.ok) {
+      console.error('Telegram API error:', result.description);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error sending Telegram message with button:', error);
+    return false;
+  }
+}
+
 /**
  * Форматирование даты для уведомлений
  */
@@ -150,7 +201,7 @@ export async function notifyClientBookingCancelled(params: {
 // ============ Уведомления для мастера ============
 
 /**
- * Уведомление мастеру о новой записи
+ * Уведомление мастеру о новой записи с инлайн-кнопкой
  */
 export async function notifyMasterNewBooking(params: {
   masterTelegramId: bigint;
@@ -158,6 +209,7 @@ export async function notifyMasterNewBooking(params: {
   serviceName: string;
   date: string;
   time: string;
+  bookingId: number;
 }): Promise<boolean> {
   const text = `
 🔔 *Новая запись!*
@@ -170,9 +222,11 @@ export async function notifyMasterNewBooking(params: {
 Подтвердите или отклоните запись в приложении.
   `.trim();
 
-  return sendTelegramMessage({
+  return sendTelegramMessageWithButton({
     chatId: params.masterTelegramId.toString(),
     text,
+    buttonText: '📋 Посмотреть запись',
+    bookingId: params.bookingId,
   });
 }
 

@@ -15,6 +15,8 @@ export interface AuthUser {
   lastName: string | null;
   username: string | null;
   role: UserRole;
+  nickname: string | null;
+  canCreateServices: boolean;
 }
 
 interface AuthResult {
@@ -48,6 +50,8 @@ export async function authenticateUser(request: NextRequest): Promise<AuthResult
             lastName: user.lastName,
             username: user.username,
             role: user.role,
+            nickname: user.nickname,
+            canCreateServices: user.canCreateServices,
           }
         };
       }
@@ -107,6 +111,8 @@ export async function authenticateUser(request: NextRequest): Promise<AuthResult
       lastName: user.lastName,
       username: user.username,
       role: user.role,
+      nickname: user.nickname,
+      canCreateServices: user.canCreateServices,
     }
   };
 }

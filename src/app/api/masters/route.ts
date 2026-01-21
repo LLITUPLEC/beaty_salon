@@ -24,6 +24,7 @@ export async function GET() {
       specialization: true,
       rating: true,
       photoUrl: true,
+      canCreateServices: true,
       _count: {
         select: {
           masterBookings: true,
@@ -46,6 +47,7 @@ export async function GET() {
       rating: m.rating,
       avatar: m.photoUrl,
       bookings: m._count.masterBookings,
+      canCreateServices: m.canCreateServices,
     }))
   );
 }
@@ -53,12 +55,11 @@ export async function GET() {
 /**
  * POST /api/masters
  * Добавить мастера (только для админа)
- * Пользователь с таким telegram_id должен существовать в БД
  */
 export async function POST(request: NextRequest) {
   return withAuth(request, async () => {
     const body = await request.json();
-    const { telegramId, nickname, specialization } = body;
+    const { telegramId, nickname, specialization, canCreateServices } = body;
 
     if (!telegramId) {
       return errorResponse('INVALID_DATA', 'Telegram ID обязателен');
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
       return errorResponse('INVALID_DATA', 'Некорректный Telegram ID');
     }
 
-    // Проверяем существует ли пользователь с таким telegram_id
+    // Проверяем существует ли пользователь
     const existingUser = await prisma.user.findUnique({
       where: { telegramId: tgId }
     });
@@ -98,6 +99,7 @@ export async function POST(request: NextRequest) {
         role: UserRole.MASTER,
         nickname: nickname || null,
         specialization: specialization || 'Мастер',
+        canCreateServices: canCreateServices || false,
       }
     });
 
@@ -112,6 +114,7 @@ export async function POST(request: NextRequest) {
       name: master.nickname || `${master.firstName} ${master.lastName || ''}`.trim(),
       telegramId: master.telegramId.toString(),
       specialization: master.specialization,
+      canCreateServices: master.canCreateServices,
     });
   }, [UserRole.ADMIN]);
 }
@@ -141,6 +144,11 @@ export async function DELETE(request: NextRequest) {
       return errorResponse('NOT_MASTER', 'Пользователь не является мастером');
     }
 
+    // Удаляем связи мастера с услугами
+    await prisma.masterService.deleteMany({
+      where: { masterId: master.id }
+    });
+
     // Меняем роль на CLIENT
     await prisma.user.update({
       where: { id: master.id },
@@ -148,6 +156,7 @@ export async function DELETE(request: NextRequest) {
         role: UserRole.CLIENT,
         specialization: null,
         nickname: null,
+        canCreateServices: false,
       }
     });
 
@@ -157,12 +166,12 @@ export async function DELETE(request: NextRequest) {
 
 /**
  * PUT /api/masters
- * Обновить данные мастера (nickname, specialization)
+ * Обновить данные мастера
  */
 export async function PUT(request: NextRequest) {
   return withAuth(request, async () => {
     const body = await request.json();
-    const { id, nickname, specialization } = body;
+    const { id, nickname, specialization, canCreateServices } = body;
 
     if (!id) {
       return errorResponse('INVALID_DATA', 'ID мастера обязателен');
@@ -181,6 +190,7 @@ export async function PUT(request: NextRequest) {
       data: {
         ...(nickname !== undefined && { nickname }),
         ...(specialization !== undefined && { specialization }),
+        ...(canCreateServices !== undefined && { canCreateServices }),
       }
     });
 
@@ -189,6 +199,7 @@ export async function PUT(request: NextRequest) {
       name: updated.nickname || `${updated.firstName} ${updated.lastName || ''}`.trim(),
       nickname: updated.nickname,
       specialization: updated.specialization,
+      canCreateServices: updated.canCreateServices,
     });
   }, [UserRole.ADMIN]);
 }
