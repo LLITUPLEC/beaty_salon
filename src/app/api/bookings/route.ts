@@ -2,6 +2,10 @@ import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { withAuth, jsonResponse, errorResponse } from '@/lib/api-utils';
 import { UserRole, BookingStatus } from '@prisma/client';
+import { 
+  notifyClientBookingCreated, 
+  notifyMasterNewBooking 
+} from '@/lib/notifications';
 
 /**
  * GET /api/bookings
@@ -77,6 +81,26 @@ export async function POST(request: NextRequest) {
       return errorResponse('INVALID_DATA', 'Missing required fields');
     }
 
+    // Проверяем что дата и время не в прошлом
+    const bookingDate = new Date(date);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    if (bookingDate < today) {
+      return errorResponse('INVALID_DATE', 'Cannot book for past dates');
+    }
+    
+    // Если сегодня - проверяем время
+    if (bookingDate.getTime() === today.getTime()) {
+      const [hours, minutes] = time.split(':').map(Number);
+      const slotTime = hours * 60 + minutes;
+      const currentTime = now.getHours() * 60 + now.getMinutes() + 30; // +30 min buffer
+      
+      if (slotTime <= currentTime) {
+        return errorResponse('INVALID_TIME', 'Cannot book for past time slots');
+      }
+    }
+
     // Получаем услугу для определения цены
     const service = await prisma.service.findUnique({
       where: { id: serviceId }
@@ -87,7 +111,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Проверяем доступность слота
-    const bookingDate = new Date(date);
     const existingBooking = await prisma.booking.findFirst({
       where: {
         masterId,
@@ -102,6 +125,32 @@ export async function POST(request: NextRequest) {
     if (existingBooking) {
       return errorResponse('TIME_SLOT_TAKEN', 'This time slot is already booked');
     }
+
+    // Получаем данные мастера для уведомлений
+    const master = await prisma.user.findUnique({
+      where: { id: masterId },
+      select: { 
+        id: true, 
+        telegramId: true, 
+        firstName: true, 
+        lastName: true 
+      }
+    });
+
+    if (!master) {
+      return errorResponse('NOT_FOUND', 'Master not found', 404);
+    }
+
+    // Получаем данные клиента для уведомлений
+    const client = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { 
+        id: true, 
+        telegramId: true, 
+        firstName: true, 
+        lastName: true 
+      }
+    });
 
     // Создаем запись
     const booking = await prisma.booking.create({
@@ -120,6 +169,35 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Отправляем уведомления
+    const clientName = client 
+      ? `${client.firstName} ${client.lastName || ''}`.trim() 
+      : 'Клиент';
+    const masterName = `${master.firstName} ${master.lastName || ''}`.trim();
+    const dateStr = date;
+
+    // Уведомление клиенту
+    if (client?.telegramId) {
+      notifyClientBookingCreated({
+        clientTelegramId: client.telegramId,
+        masterName,
+        serviceName: service.name,
+        date: dateStr,
+        time,
+      }).catch(err => console.error('Error notifying client:', err));
+    }
+
+    // Уведомление мастеру
+    if (master.telegramId) {
+      notifyMasterNewBooking({
+        masterTelegramId: master.telegramId,
+        clientName,
+        serviceName: service.name,
+        date: dateStr,
+        time,
+      }).catch(err => console.error('Error notifying master:', err));
+    }
+
     return jsonResponse({
       id: booking.id,
       status: booking.status.toLowerCase(),
@@ -127,4 +205,3 @@ export async function POST(request: NextRequest) {
     });
   }, [UserRole.CLIENT, UserRole.ADMIN]);
 }
-

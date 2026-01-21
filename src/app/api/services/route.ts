@@ -49,19 +49,29 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, categoryId, price, duration } = body;
 
-    if (!name || !categoryId || !price || !duration) {
-      return errorResponse('INVALID_DATA', 'Missing required fields');
+    if (!name || !categoryId || price === undefined || !duration) {
+      return errorResponse('INVALID_DATA', 'Missing required fields: name, categoryId, price, duration');
+    }
+
+    // Проверяем что категория существует
+    const category = await prisma.category.findUnique({
+      where: { id: categoryId }
+    });
+
+    if (!category) {
+      return errorResponse('INVALID_CATEGORY', `Category with id ${categoryId} not found`);
     }
 
     // Мастер может создавать только свои услуги
-    const masterId = user.role === UserRole.MASTER ? user.id : body.masterId;
+    // user.id - это ID пользователя (мастера)
+    const masterId = user.role === UserRole.MASTER ? user.id : (body.masterId || null);
 
     const service = await prisma.service.create({
       data: {
         name,
         categoryId,
-        price,
-        duration,
+        price: Number(price),
+        duration: Number(duration),
         masterId,
       },
       include: {
@@ -73,6 +83,7 @@ export async function POST(request: NextRequest) {
       id: service.id,
       name: service.name,
       category: service.category.name,
+      categoryId: service.categoryId,
       price: service.price,
       duration: service.duration,
     });

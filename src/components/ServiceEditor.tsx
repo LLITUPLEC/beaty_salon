@@ -1,10 +1,17 @@
 'use client';
 
-import { useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Card, CardContent, Button, Input, Select } from './ui';
-import { Service, ServiceFormData } from '@/types';
-import { serviceCategories } from '@/lib/mockData';
+import { Service } from '@/types';
+import { getCategories, CategoryData } from '@/lib/api-client';
+
+interface ServiceFormData {
+  name: string;
+  categoryId: number;
+  price: number;
+  duration: number;
+}
 
 interface ServiceEditorProps {
   service?: Service | null;
@@ -13,9 +20,11 @@ interface ServiceEditorProps {
 }
 
 export function ServiceEditor({ service, onBack, onSave }: ServiceEditorProps) {
+  const [categories, setCategories] = useState<CategoryData[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [formData, setFormData] = useState<ServiceFormData>({
     name: service?.name || '',
-    category: service?.category || 'Стрижки',
+    categoryId: 0,
     price: service?.price || 0,
     duration: service?.duration || 60
   });
@@ -24,14 +33,44 @@ export function ServiceEditor({ service, onBack, onSave }: ServiceEditorProps) {
 
   const isEditing = !!service;
 
+  // Load categories on mount
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  const loadCategories = async () => {
+    setIsLoadingCategories(true);
+    try {
+      const result = await getCategories();
+      if (result.success && result.data) {
+        setCategories(result.data);
+        
+        // If editing, find category by name and set categoryId
+        if (service?.category) {
+          const cat = result.data.find(c => c.name === service.category);
+          if (cat) {
+            setFormData(prev => ({ ...prev, categoryId: cat.id }));
+          }
+        } else if (result.data.length > 0) {
+          // Set first category as default for new service
+          setFormData(prev => ({ ...prev, categoryId: result.data[0].id }));
+        }
+      }
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    } finally {
+      setIsLoadingCategories(false);
+    }
+  };
+
   const validate = (): boolean => {
     const newErrors: Partial<Record<keyof ServiceFormData, string>> = {};
 
     if (!formData.name.trim()) {
       newErrors.name = 'Введите название услуги';
     }
-    if (!formData.category) {
-      newErrors.category = 'Выберите категорию';
+    if (!formData.categoryId) {
+      newErrors.categoryId = 'Выберите категорию';
     }
     if (formData.price <= 0) {
       newErrors.price = 'Введите корректную цену';
@@ -57,10 +96,18 @@ export function ServiceEditor({ service, onBack, onSave }: ServiceEditorProps) {
     }
   };
 
-  const categoryOptions = serviceCategories.map((cat) => ({
-    value: cat,
-    label: cat
+  const categoryOptions = categories.map((cat) => ({
+    value: cat.id,
+    label: cat.name
   }));
+
+  if (isLoadingCategories) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -94,9 +141,10 @@ export function ServiceEditor({ service, onBack, onSave }: ServiceEditorProps) {
             <Select
               label="Категория"
               options={categoryOptions}
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              error={errors.category}
+              value={formData.categoryId || ''}
+              onChange={(e) => setFormData({ ...formData, categoryId: Number(e.target.value) })}
+              error={errors.categoryId}
+              placeholder="Выберите категорию"
             />
 
             <div className="grid grid-cols-2 gap-4">
@@ -141,4 +189,3 @@ export function ServiceEditor({ service, onBack, onSave }: ServiceEditorProps) {
     </div>
   );
 }
-

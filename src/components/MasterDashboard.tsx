@@ -8,7 +8,7 @@ import { Card, CardContent, StatCard } from './ui/Card';
 import { StatusBadge } from './ui/Badge';
 import { Button } from './ui/Button';
 import { ServiceEditor } from './ServiceEditor';
-import { Service, Booking, ServiceFormData } from '@/types';
+import { Service, Booking } from '@/types';
 import { formatPrice, formatDuration, formatDate } from '@/lib/utils';
 import { hapticFeedback, showAlert, showConfirm } from '@/lib/telegram';
 import {
@@ -118,7 +118,7 @@ export function MasterDashboard({ masterName }: MasterDashboardProps) {
     }
   };
 
-  const handleSaveService = async (data: ServiceFormData) => {
+  const handleSaveService = async (data: { name: string; categoryId: number; price: number; duration: number }) => {
     if (editingService) {
       const result = await updateService(editingService.id, {
         name: data.name,
@@ -129,11 +129,13 @@ export function MasterDashboard({ masterName }: MasterDashboardProps) {
         await loadData();
         hapticFeedback('success');
         await showAlert('Услуга обновлена!');
+      } else {
+        await showAlert(result.error?.message || 'Ошибка при обновлении');
       }
     } else {
       const result = await createService({
         name: data.name,
-        categoryId: 1, // Default category
+        categoryId: data.categoryId,
         price: data.price,
         duration: data.duration,
       });
@@ -141,6 +143,8 @@ export function MasterDashboard({ masterName }: MasterDashboardProps) {
         await loadData();
         hapticFeedback('success');
         await showAlert('Услуга добавлена!');
+      } else {
+        await showAlert(result.error?.message || 'Ошибка при создании услуги');
       }
     }
 

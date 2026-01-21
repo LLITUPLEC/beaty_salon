@@ -57,19 +57,49 @@ export function BookingForm({ service, onBack, onSubmit, isSubmitting = false }:
     setSelectedTime(null);
     try {
       const result = await getMasterAvailability(selectedMaster, selectedDate, service.id);
+      let slots: string[] = [];
+      
       if (result.success && result.data) {
-        setAvailableSlots(result.data.availableSlots || []);
+        slots = result.data.availableSlots || [];
       } else {
         // Fallback to default slots if API fails
-        setAvailableSlots(['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00']);
+        slots = ['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00'];
       }
+      
+      // Filter out past time slots if selected date is today
+      const filteredSlots = filterPastTimeSlots(slots, selectedDate);
+      setAvailableSlots(filteredSlots);
     } catch (error) {
       console.error('Error loading slots:', error);
       // Fallback to default slots
-      setAvailableSlots(['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00']);
+      const defaultSlots = ['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00'];
+      const filteredSlots = filterPastTimeSlots(defaultSlots, selectedDate);
+      setAvailableSlots(filteredSlots);
     } finally {
       setIsLoadingSlots(false);
     }
+  };
+
+  // Filter out past time slots for today
+  const filterPastTimeSlots = (slots: string[], date: string): string[] => {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // If not today, return all slots
+    if (date !== today) {
+      return slots;
+    }
+    
+    // Get current time + 30 min buffer
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const currentTimeInMinutes = currentHour * 60 + currentMinute + 30; // +30 min buffer
+    
+    return slots.filter(slot => {
+      const [hours, minutes] = slot.split(':').map(Number);
+      const slotTimeInMinutes = hours * 60 + minutes;
+      return slotTimeInMinutes > currentTimeInMinutes;
+    });
   };
 
   const mapMasterData = (data: MasterData): Master => ({
