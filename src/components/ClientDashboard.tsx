@@ -1,16 +1,22 @@
 'use client';
 
-import { useState } from 'react';
-import { Clock, User, Calendar, CheckCircle, Scissors } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Clock, User, Calendar, CheckCircle, Scissors, Loader2 } from 'lucide-react';
 import { Header } from './ui/Header';
 import { Tabs, TabContent } from './ui/Tabs';
 import { Card, CardContent } from './ui/Card';
 import { StatusBadge } from './ui/Badge';
 import { BookingForm } from './BookingForm';
 import { Service, Booking, BookingFormData } from '@/types';
-import { formatPrice, formatDuration, formatDate, cn } from '@/lib/utils';
-import { mockServices, mockClientBookings } from '@/lib/mockData';
+import { formatPrice, formatDuration, formatDate } from '@/lib/utils';
 import { hapticFeedback, showAlert } from '@/lib/telegram';
+import { 
+  getServices, 
+  getBookings, 
+  createBooking,
+  ServiceData,
+  BookingData 
+} from '@/lib/api-client';
 
 interface ClientDashboardProps {
   userName: string;
@@ -19,9 +25,62 @@ interface ClientDashboardProps {
 export function ClientDashboard({ userName }: ClientDashboardProps) {
   const [activeTab, setActiveTab] = useState('services');
   const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>(mockClientBookings);
+  const [services, setServices] = useState<Service[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const services = mockServices;
+  // Load data on mount
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      // Load services and bookings in parallel
+      const [servicesRes, bookingsRes] = await Promise.all([
+        getServices(),
+        getBookings()
+      ]);
+
+      if (servicesRes.success && servicesRes.data) {
+        setServices(servicesRes.data.map(mapServiceData));
+      }
+
+      if (bookingsRes.success && bookingsRes.data) {
+        setBookings(bookingsRes.data.map(mapBookingData));
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Map API data to component types
+  const mapServiceData = (data: ServiceData): Service => ({
+    id: data.id,
+    name: data.name,
+    category: data.category,
+    price: data.price,
+    duration: data.duration,
+  });
+
+  const mapBookingData = (data: BookingData): Booking => ({
+    id: data.id,
+    client: data.client,
+    clientId: data.clientId,
+    master: data.master,
+    masterId: data.masterId,
+    service: data.service,
+    serviceId: data.serviceId,
+    date: data.date,
+    time: data.time,
+    status: data.status as Booking['status'],
+    price: data.price,
+    duration: data.duration,
+  });
 
   const activeBookings = bookings.filter(
     (b) => b.status === 'confirmed' || b.status === 'pending'
@@ -36,31 +95,36 @@ export function ClientDashboard({ userName }: ClientDashboardProps) {
   };
 
   const handleBookingSubmit = async (data: BookingFormData) => {
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    
-    const service = services.find((s) => s.id === data.serviceId);
-    const newBooking: Booking = {
-      id: Date.now(),
-      client: userName,
-      clientId: 123456789,
-      master: 'Анна Петрова',
-      masterId: data.masterId,
-      service: service?.name || '',
-      serviceId: data.serviceId,
-      date: data.date,
-      time: data.time,
-      status: 'pending',
-      price: service?.price || 0,
-      duration: service?.duration || 0
-    };
+    setIsSubmitting(true);
+    try {
+      const result = await createBooking({
+        masterId: data.masterId,
+        serviceId: data.serviceId,
+        date: data.date,
+        time: data.time,
+      });
 
-    setBookings([newBooking, ...bookings]);
-    setSelectedService(null);
-    setActiveTab('bookings');
-    
-    hapticFeedback('success');
-    await showAlert('Запись создана! Ожидайте подтверждения от мастера.');
+      if (result.success) {
+        // Reload bookings to get updated list
+        const bookingsRes = await getBookings();
+        if (bookingsRes.success && bookingsRes.data) {
+          setBookings(bookingsRes.data.map(mapBookingData));
+        }
+        
+        setSelectedService(null);
+        setActiveTab('bookings');
+        
+        hapticFeedback('success');
+        await showAlert('Запись создана! Ожидайте подтверждения от мастера.');
+      } else {
+        await showAlert(result.error?.message || 'Ошибка при создании записи');
+      }
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      await showAlert('Произошла ошибка. Попробуйте еще раз.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const tabs = [
@@ -69,13 +133,24 @@ export function ClientDashboard({ userName }: ClientDashboardProps) {
   ];
 
   // Service card icon based on category
-  const getCategoryIcon = (category: string) => {
+  const getCategoryIcon = () => {
     return (
       <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
         <Scissors className="h-5 w-5 text-amber-600" />
       </div>
     );
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-amber-500 mx-auto mb-2" />
+          <p className="text-gray-500">Загрузка данных...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (selectedService) {
     return (
@@ -86,6 +161,7 @@ export function ClientDashboard({ userName }: ClientDashboardProps) {
             service={selectedService}
             onBack={() => setSelectedService(null)}
             onSubmit={handleBookingSubmit}
+            isSubmitting={isSubmitting}
           />
         </main>
       </div>
@@ -114,39 +190,46 @@ export function ClientDashboard({ userName }: ClientDashboardProps) {
         {/* Services tab */}
         {activeTab === 'services' && (
           <TabContent>
-            <div className="grid gap-4 md:grid-cols-2">
-              {services.map((service) => (
-                <Card
-                  key={service.id}
-                  hover
-                  onClick={() => handleServiceClick(service)}
-                  className="cursor-pointer"
-                >
-                  <CardContent>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">
-                          {service.category}
-                        </p>
-                        <h3 className="font-semibold text-gray-900 mb-3">
-                          {service.name}
-                        </h3>
-                        <div className="flex items-center gap-1 text-gray-500 text-sm">
-                          <Clock className="h-4 w-4" />
-                          <span>{formatDuration(service.duration)}</span>
+            {services.length === 0 ? (
+              <div className="text-center py-12">
+                <Scissors className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">Услуги пока не добавлены</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {services.map((service) => (
+                  <Card
+                    key={service.id}
+                    hover
+                    onClick={() => handleServiceClick(service)}
+                    className="cursor-pointer"
+                  >
+                    <CardContent>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+                            {service.category}
+                          </p>
+                          <h3 className="font-semibold text-gray-900 mb-3">
+                            {service.name}
+                          </h3>
+                          <div className="flex items-center gap-1 text-gray-500 text-sm">
+                            <Clock className="h-4 w-4" />
+                            <span>{formatDuration(service.duration)}</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          {getCategoryIcon()}
+                          <p className="text-lg font-bold text-gray-900 mt-3">
+                            {formatPrice(service.price)}
+                          </p>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end">
-                        {getCategoryIcon(service.category)}
-                        <p className="text-lg font-bold text-gray-900 mt-3">
-                          {formatPrice(service.price)}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabContent>
         )}
 
@@ -248,4 +331,3 @@ export function ClientDashboard({ userName }: ClientDashboardProps) {
     </div>
   );
 }
-

@@ -16,6 +16,7 @@ module.exports = {
       args: 'start',
       cwd: './',
       instances: 1,
+      exec_mode: 'fork',  // Fork mode for Next.js
       autorestart: true,
       watch: false,
       max_memory_restart: '500M',
@@ -29,6 +30,7 @@ module.exports = {
       script: 'bot.js',
       cwd: './',
       instances: 1,
+      exec_mode: 'fork',
       autorestart: true,
       watch: false,
       max_memory_restart: '200M',

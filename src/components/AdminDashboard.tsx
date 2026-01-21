@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Calendar,
   Clock,
@@ -9,7 +9,7 @@ import {
   Scissors,
   TrendingUp,
   Plus,
-  ChevronDown
+  Loader2
 } from 'lucide-react';
 import { Header } from './ui/Header';
 import { Tabs, TabContent } from './ui/Tabs';
@@ -17,24 +17,30 @@ import { Card, CardContent, StatCard } from './ui/Card';
 import { StatusBadge } from './ui/Badge';
 import { Button } from './ui/Button';
 import { Input, Select } from './ui/Input';
-import { Booking, Master, Schedule, ScheduleFormData, MasterFormData } from '@/types';
+import { Booking, Master, Schedule, ScheduleFormData } from '@/types';
 import { formatPrice, formatDate } from '@/lib/utils';
-import {
-  mockAllBookings,
-  mockMasters,
-  mockSchedules,
-  mockServiceReports,
-  mockMasterReports,
-  mockStats
-} from '@/lib/mockData';
 import { hapticFeedback, showAlert } from '@/lib/telegram';
+import {
+  getAdminBookings,
+  getMasters,
+  getSchedules,
+  getReports,
+  createSchedule,
+  createMaster,
+  BookingData,
+  MasterData,
+  ScheduleData,
+  ReportsData
+} from '@/lib/api-client';
 
 export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('bookings');
-  const [bookings] = useState<Booking[]>(mockAllBookings);
-  const [masters, setMasters] = useState<Master[]>(mockMasters);
-  const [schedules, setSchedules] = useState<Schedule[]>(mockSchedules);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [masters, setMasters] = useState<Master[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [reports, setReports] = useState<ReportsData | null>(null);
   const [selectedMasterFilter, setSelectedMasterFilter] = useState<string>('all');
+  const [isLoading, setIsLoading] = useState(true);
 
   // Form states
   const [newMasterTelegram, setNewMasterTelegram] = useState('');
@@ -45,9 +51,90 @@ export function AdminDashboard() {
     endTime: '18:00'
   });
 
-  const stats = mockStats;
-  const serviceReports = mockServiceReports;
-  const masterReports = mockMasterReports;
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [bookingsRes, mastersRes, schedulesRes, reportsRes] = await Promise.all([
+        getAdminBookings(),
+        getMasters(),
+        getSchedules(),
+        getReports()
+      ]);
+
+      if (bookingsRes.success && bookingsRes.data) {
+        setBookings(bookingsRes.data.map(mapBookingData));
+      }
+
+      if (mastersRes.success && mastersRes.data) {
+        setMasters(mastersRes.data.map(mapMasterData));
+      }
+
+      if (schedulesRes.success && schedulesRes.data) {
+        setSchedules(schedulesRes.data.map(mapScheduleData));
+      }
+
+      if (reportsRes.success && reportsRes.data) {
+        setReports(reportsRes.data);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const mapBookingData = (data: BookingData): Booking => ({
+    id: data.id,
+    client: data.client,
+    clientId: data.clientId,
+    master: data.master,
+    masterId: data.masterId,
+    service: data.service,
+    serviceId: data.serviceId,
+    date: data.date,
+    time: data.time,
+    status: data.status as Booking['status'],
+    price: data.price,
+    duration: data.duration,
+  });
+
+  const mapMasterData = (data: MasterData): Master => ({
+    id: data.id,
+    name: data.name,
+    telegram: data.telegram || '',
+    telegram_id: parseInt(data.telegramId) || 0,
+    specialization: data.specialization,
+    rating: data.rating || 5.0,
+    bookings: data.bookings || 0,
+    active: true,
+  });
+
+  const mapScheduleData = (data: ScheduleData): Schedule => ({
+    id: data.id,
+    master: data.master,
+    masterId: data.masterId,
+    date: data.date,
+    startTime: data.startTime,
+    endTime: data.endTime,
+  });
+
+  const stats = reports?.stats || {
+    totalBookings: bookings.length,
+    completedBookings: bookings.filter(b => b.status === 'completed').length,
+    cancelledBookings: bookings.filter(b => b.status === 'cancelled').length,
+    totalRevenue: 0,
+    averageCheck: 0,
+    newClients: 0,
+    repeatClients: 0,
+    repeatRate: 0,
+  };
+
+  const serviceReports = reports?.serviceReports || [];
+  const masterReports = reports?.masterReports || [];
 
   const filteredBookings = selectedMasterFilter === 'all'
     ? bookings
@@ -56,44 +143,45 @@ export function AdminDashboard() {
   const handleAddMaster = async () => {
     if (!newMasterTelegram.trim()) return;
 
-    hapticFeedback('success');
-    const newMaster: Master = {
-      id: Date.now(),
+    const result = await createMaster({
+      telegramId: newMasterTelegram.replace('@', ''),
       name: 'Новый мастер',
-      telegram: newMasterTelegram,
-      telegram_id: Date.now(),
       specialization: 'Специалист',
-      bookings: 0,
-      rating: 5.0,
-      active: true
-    };
-    setMasters([...masters, newMaster]);
-    setNewMasterTelegram('');
-    await showAlert('Мастер добавлен!');
+    });
+
+    if (result.success) {
+      hapticFeedback('success');
+      await loadData();
+      setNewMasterTelegram('');
+      await showAlert('Мастер добавлен!');
+    } else {
+      await showAlert(result.error?.message || 'Ошибка при добавлении мастера');
+    }
   };
 
   const handleCreateSchedule = async () => {
     if (!scheduleForm.masterId || !scheduleForm.date) return;
 
-    const master = masters.find((m) => m.id === scheduleForm.masterId);
-    const newSchedule: Schedule = {
-      id: Date.now(),
-      master: master?.name || '',
+    const result = await createSchedule({
       masterId: scheduleForm.masterId,
       date: scheduleForm.date,
       startTime: scheduleForm.startTime,
-      endTime: scheduleForm.endTime
-    };
-
-    hapticFeedback('success');
-    setSchedules([...schedules, newSchedule]);
-    setScheduleForm({
-      masterId: 0,
-      date: '',
-      startTime: '09:00',
-      endTime: '18:00'
+      endTime: scheduleForm.endTime,
     });
-    await showAlert('Смена создана!');
+
+    if (result.success) {
+      hapticFeedback('success');
+      await loadData();
+      setScheduleForm({
+        masterId: 0,
+        date: '',
+        startTime: '09:00',
+        endTime: '18:00'
+      });
+      await showAlert('Смена создана!');
+    } else {
+      await showAlert(result.error?.message || 'Ошибка при создании смены');
+    }
   };
 
   const tabs = [
@@ -123,6 +211,17 @@ export function AdminDashboard() {
     { value: '20:00', label: '20:00' }
   ];
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-amber-500 mx-auto mb-2" />
+          <p className="text-gray-500">Загрузка данных...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -140,7 +239,7 @@ export function AdminDashboard() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           <StatCard
             label="Записи сегодня"
-            value={24}
+            value={bookings.filter(b => b.date === new Date().toISOString().split('T')[0]).length}
             icon={<Calendar className="h-5 w-5" />}
           />
           <StatCard
@@ -154,7 +253,7 @@ export function AdminDashboard() {
             icon={<Scissors className="h-5 w-5" />}
           />
           <StatCard
-            label="Выручка за месяц"
+            label="Выручка"
             value={`₽${(stats.totalRevenue / 1000).toFixed(0)}K`}
             icon={<TrendingUp className="h-5 w-5" />}
           />
@@ -184,37 +283,44 @@ export function AdminDashboard() {
             </div>
 
             <div className="space-y-3">
-              {filteredBookings.map((booking) => (
-                <Card key={booking.id}>
-                  <CardContent>
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">
-                          {booking.service}
-                        </h3>
-                        <div className="flex items-center gap-1 text-gray-500 text-sm mt-1">
-                          <User className="h-4 w-4" />
-                          <span>{booking.client}</span>
+              {filteredBookings.length === 0 ? (
+                <div className="text-center py-12">
+                  <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">Нет записей</p>
+                </div>
+              ) : (
+                filteredBookings.map((booking) => (
+                  <Card key={booking.id}>
+                    <CardContent>
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <h3 className="font-semibold text-gray-900">
+                            {booking.service}
+                          </h3>
+                          <div className="flex items-center gap-1 text-gray-500 text-sm mt-1">
+                            <User className="h-4 w-4" />
+                            <span>{booking.client}</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-gray-400 text-xs mt-0.5">
+                            <span>Мастер: {booking.master}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1 text-gray-400 text-xs mt-0.5">
-                          <span>Мастер: {booking.master}</span>
+                        <StatusBadge status={booking.status} />
+                      </div>
+                      <div className="flex items-center gap-4 text-gray-500 text-sm">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          <span>{formatDate(booking.date)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-4 w-4" />
+                          <span>{booking.time}</span>
                         </div>
                       </div>
-                      <StatusBadge status={booking.status} />
-                    </div>
-                    <div className="flex items-center gap-4 text-gray-500 text-sm">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        <span>{formatDate(booking.date)}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        <span>{booking.time}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
           </TabContent>
         )}
@@ -232,7 +338,7 @@ export function AdminDashboard() {
                 </p>
                 <div className="flex gap-3">
                   <Input
-                    placeholder="@telegram"
+                    placeholder="@telegram или ID"
                     value={newMasterTelegram}
                     onChange={(e) => setNewMasterTelegram(e.target.value)}
                     className="flex-1"
@@ -246,29 +352,36 @@ export function AdminDashboard() {
             </Card>
 
             <div className="space-y-3">
-              {masters.map((master) => (
-                <Card key={master.id}>
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">
-                          {master.name}
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          {master.specialization}
-                        </p>
-                        <p className="text-sm text-amber-600">{master.telegram}</p>
+              {masters.length === 0 ? (
+                <div className="text-center py-12">
+                  <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">Нет мастеров</p>
+                </div>
+              ) : (
+                masters.map((master) => (
+                  <Card key={master.id}>
+                    <CardContent>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-semibold text-gray-900">
+                            {master.name}
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            {master.specialization}
+                          </p>
+                          <p className="text-sm text-amber-600">{master.telegram || `ID: ${master.telegram_id}`}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-gray-900">
+                            {master.bookings}
+                          </p>
+                          <p className="text-sm text-gray-500">записей</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-bold text-gray-900">
-                          {master.bookings}
-                        </p>
-                        <p className="text-sm text-gray-500">записей</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
           </TabContent>
         )}
@@ -328,27 +441,34 @@ export function AdminDashboard() {
             </Card>
 
             <div className="space-y-3">
-              {schedules.map((schedule) => (
-                <Card key={schedule.id}>
-                  <CardContent>
-                    <h3 className="font-semibold text-gray-900 mb-2">
-                      {schedule.master}
-                    </h3>
-                    <div className="flex items-center gap-4 text-gray-500 text-sm">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        <span>{formatDate(schedule.date)}</span>
+              {schedules.length === 0 ? (
+                <div className="text-center py-12">
+                  <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">Нет смен</p>
+                </div>
+              ) : (
+                schedules.map((schedule) => (
+                  <Card key={schedule.id}>
+                    <CardContent>
+                      <h3 className="font-semibold text-gray-900 mb-2">
+                        {schedule.master}
+                      </h3>
+                      <div className="flex items-center gap-4 text-gray-500 text-sm">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          <span>{formatDate(schedule.date)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-4 w-4" />
+                          <span>
+                            {schedule.startTime} - {schedule.endTime}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        <span>
-                          {schedule.startTime} - {schedule.endTime}
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
           </TabContent>
         )}
@@ -363,17 +483,21 @@ export function AdminDashboard() {
                   <h3 className="font-semibold text-gray-900 mb-4">
                     Услуги за месяц
                   </h3>
-                  <div className="space-y-3">
-                    {serviceReports.map((report) => (
-                      <div
-                        key={report.category}
-                        className="flex items-center justify-between"
-                      >
-                        <span className="text-gray-600">{report.category}</span>
-                        <span className="font-medium">{report.count}</span>
-                      </div>
-                    ))}
-                  </div>
+                  {serviceReports.length === 0 ? (
+                    <p className="text-gray-500 text-sm">Нет данных</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {serviceReports.map((report) => (
+                        <div
+                          key={report.category}
+                          className="flex items-center justify-between"
+                        >
+                          <span className="text-gray-600">{report.category}</span>
+                          <span className="font-medium">{report.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -383,19 +507,23 @@ export function AdminDashboard() {
                   <h3 className="font-semibold text-gray-900 mb-4">
                     Выручка по услугам
                   </h3>
-                  <div className="space-y-3">
-                    {serviceReports.map((report) => (
-                      <div
-                        key={report.category}
-                        className="flex items-center justify-between"
-                      >
-                        <span className="text-gray-600">{report.category}</span>
-                        <span className="font-medium">
-                          {formatPrice(report.revenue)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  {serviceReports.length === 0 ? (
+                    <p className="text-gray-500 text-sm">Нет данных</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {serviceReports.map((report) => (
+                        <div
+                          key={report.category}
+                          className="flex items-center justify-between"
+                        >
+                          <span className="text-gray-600">{report.category}</span>
+                          <span className="font-medium">
+                            {formatPrice(report.revenue)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -407,22 +535,26 @@ export function AdminDashboard() {
                   <h3 className="font-semibold text-gray-900 mb-4">
                     Рейтинг мастеров
                   </h3>
-                  <div className="space-y-3">
-                    {masterReports.map((report, index) => (
-                      <div
-                        key={report.masterId}
-                        className="flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-amber-600 font-bold">
-                            #{index + 1}
-                          </span>
-                          <span className="text-gray-600">{report.name}</span>
+                  {masterReports.length === 0 ? (
+                    <p className="text-gray-500 text-sm">Нет данных</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {masterReports.map((report, index) => (
+                        <div
+                          key={report.masterId}
+                          className="flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-amber-600 font-bold">
+                              #{index + 1}
+                            </span>
+                            <span className="text-gray-600">{report.name}</span>
+                          </div>
+                          <span className="font-medium">{report.bookings}</span>
                         </div>
-                        <span className="font-medium">{report.bookings}</span>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -455,4 +587,3 @@ export function AdminDashboard() {
     </div>
   );
 }
-

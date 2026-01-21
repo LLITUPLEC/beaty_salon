@@ -1,44 +1,100 @@
 'use client';
 
-import { useState } from 'react';
-import { ArrowLeft, Clock, Star, Calendar as CalendarIcon } from 'lucide-react';
-import { Card, CardContent, Button, Calendar, Input } from './ui';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, Clock, Star, Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import { Card, CardContent, Button, Calendar } from './ui';
 import { Service, Master, BookingFormData } from '@/types';
 import { formatPrice, formatDuration, cn } from '@/lib/utils';
-import { mockMasters, mockAvailableSlots } from '@/lib/mockData';
+import { getMasters, getMasterAvailability, MasterData } from '@/lib/api-client';
 
 interface BookingFormProps {
   service: Service;
   onBack: () => void;
   onSubmit: (data: BookingFormData) => void;
+  isSubmitting?: boolean;
 }
 
-export function BookingForm({ service, onBack, onSubmit }: BookingFormProps) {
+export function BookingForm({ service, onBack, onSubmit, isSubmitting = false }: BookingFormProps) {
   const [selectedMaster, setSelectedMaster] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [masters, setMasters] = useState<Master[]>([]);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [isLoadingMasters, setIsLoadingMasters] = useState(true);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
-  const masters = mockMasters;
-  const availableSlots = mockAvailableSlots;
+  // Load masters on mount
+  useEffect(() => {
+    loadMasters();
+  }, []);
+
+  // Load available slots when master and date selected
+  useEffect(() => {
+    if (selectedMaster && selectedDate) {
+      loadAvailableSlots();
+    }
+  }, [selectedMaster, selectedDate]);
+
+  const loadMasters = async () => {
+    setIsLoadingMasters(true);
+    try {
+      const result = await getMasters();
+      if (result.success && result.data) {
+        setMasters(result.data.map(mapMasterData));
+      }
+    } catch (error) {
+      console.error('Error loading masters:', error);
+    } finally {
+      setIsLoadingMasters(false);
+    }
+  };
+
+  const loadAvailableSlots = async () => {
+    if (!selectedMaster || !selectedDate) return;
+    
+    setIsLoadingSlots(true);
+    setSelectedTime(null);
+    try {
+      const result = await getMasterAvailability(selectedMaster, selectedDate, service.id);
+      if (result.success && result.data) {
+        setAvailableSlots(result.data.availableSlots || []);
+      } else {
+        // Fallback to default slots if API fails
+        setAvailableSlots(['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00']);
+      }
+    } catch (error) {
+      console.error('Error loading slots:', error);
+      // Fallback to default slots
+      setAvailableSlots(['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00']);
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  };
+
+  const mapMasterData = (data: MasterData): Master => ({
+    id: data.id,
+    name: data.name,
+    telegram: data.telegram || '',
+    telegram_id: parseInt(data.telegramId) || 0,
+    specialization: data.specialization,
+    rating: data.rating || 5.0,
+    bookings: data.bookings || 0,
+    active: true,
+  });
 
   const handleSubmit = async () => {
     if (!selectedMaster || !selectedDate || !selectedTime) return;
 
-    setIsSubmitting(true);
-    try {
-      await onSubmit({
-        serviceId: service.id,
-        masterId: selectedMaster,
-        date: selectedDate,
-        time: selectedTime
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    await onSubmit({
+      serviceId: service.id,
+      masterId: selectedMaster,
+      date: selectedDate,
+      time: selectedTime
+    });
   };
 
-  const isFormValid = selectedMaster && selectedDate && selectedTime;
+  const isFormValid = selectedMaster && selectedDate && selectedTime && !isSubmitting;
 
   return (
     <div className="animate-fade-in">
@@ -79,41 +135,50 @@ export function BookingForm({ service, onBack, onSubmit }: BookingFormProps) {
             <h3 className="text-base font-medium text-gray-900 mb-3">
               Выберите мастера
             </h3>
-            <div className="space-y-3">
-              {masters.map((master) => (
-                <div
-                  key={master.id}
-                  onClick={() => setSelectedMaster(master.id)}
-                  className={cn(
-                    'flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all',
-                    selectedMaster === master.id
-                      ? 'border-amber-500 bg-amber-50'
-                      : 'border-gray-200 hover:border-amber-300'
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      'w-5 h-5 rounded-full border-2 flex items-center justify-center',
+            
+            {isLoadingMasters ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
+              </div>
+            ) : masters.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">Нет доступных мастеров</p>
+            ) : (
+              <div className="space-y-3">
+                {masters.map((master) => (
+                  <div
+                    key={master.id}
+                    onClick={() => setSelectedMaster(master.id)}
+                    className={cn(
+                      'flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all',
                       selectedMaster === master.id
-                        ? 'border-amber-500'
-                        : 'border-gray-300'
-                    )}>
-                      {selectedMaster === master.id && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                      )}
+                        ? 'border-amber-500 bg-amber-50'
+                        : 'border-gray-200 hover:border-amber-300'
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        'w-5 h-5 rounded-full border-2 flex items-center justify-center',
+                        selectedMaster === master.id
+                          ? 'border-amber-500'
+                          : 'border-gray-300'
+                      )}>
+                        {selectedMaster === master.id && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{master.name}</p>
+                        <p className="text-sm text-gray-500">{master.specialization}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{master.name}</p>
-                      <p className="text-sm text-gray-500">{master.specialization}</p>
+                    <div className="flex items-center gap-1 text-amber-500">
+                      <Star className="h-4 w-4 fill-current" />
+                      <span className="font-medium">{master.rating.toFixed(1)}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 text-amber-500">
-                    <Star className="h-4 w-4 fill-current" />
-                    <span className="font-medium">{master.rating}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Date selection */}
@@ -136,28 +201,39 @@ export function BookingForm({ service, onBack, onSubmit }: BookingFormProps) {
           </div>
 
           {/* Time selection */}
-          {selectedDate && (
+          {selectedDate && selectedMaster && (
             <div className="mb-6 animate-fade-in">
               <h3 className="text-base font-medium text-gray-900 mb-3">
                 Выберите время
               </h3>
-              <div className="grid grid-cols-4 gap-2">
-                {availableSlots.map((time) => (
-                  <button
-                    key={time}
-                    type="button"
-                    onClick={() => setSelectedTime(time)}
-                    className={cn(
-                      'py-3 px-4 rounded-xl text-sm font-medium transition-all',
-                      selectedTime === time
-                        ? 'gold-gradient text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    )}
-                  >
-                    {time}
-                  </button>
-                ))}
-              </div>
+              
+              {isLoadingSlots ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
+                </div>
+              ) : availableSlots.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">
+                  Нет доступного времени на эту дату
+                </p>
+              ) : (
+                <div className="grid grid-cols-4 gap-2">
+                  {availableSlots.map((time) => (
+                    <button
+                      key={time}
+                      type="button"
+                      onClick={() => setSelectedTime(time)}
+                      className={cn(
+                        'py-3 px-4 rounded-xl text-sm font-medium transition-all',
+                        selectedTime === time
+                          ? 'gold-gradient text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      )}
+                    >
+                      {time}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -176,4 +252,3 @@ export function BookingForm({ service, onBack, onSubmit }: BookingFormProps) {
     </div>
   );
 }
-
