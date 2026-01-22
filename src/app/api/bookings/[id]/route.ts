@@ -44,7 +44,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             id: true, 
             telegramId: true, 
             firstName: true, 
-            lastName: true 
+            lastName: true,
+            nickname: true
           } 
         },
         service: { 
@@ -82,9 +83,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       data: { status: newStatus }
     });
 
-    // Данные для уведомлений
+    // Данные для уведомлений - используем nickname если есть
     const clientName = `${booking.client.firstName} ${booking.client.lastName || ''}`.trim();
-    const masterName = `${booking.master.firstName} ${booking.master.lastName || ''}`.trim();
+    const masterName = booking.master.nickname || `${booking.master.firstName} ${booking.master.lastName || ''}`.trim();
     const dateStr = booking.date.toISOString().split('T')[0];
 
     // Отправляем уведомления в зависимости от нового статуса
@@ -171,7 +172,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
             id: true, 
             telegramId: true, 
             firstName: true, 
-            lastName: true 
+            lastName: true,
+            nickname: true
           } 
         },
         service: { 
@@ -196,9 +198,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       data: { status: 'CANCELLED' }
     });
 
-    // Данные для уведомлений
+    // Данные для уведомлений - используем nickname если есть
     const clientName = `${booking.client.firstName} ${booking.client.lastName || ''}`.trim();
-    const masterName = `${booking.master.firstName} ${booking.master.lastName || ''}`.trim();
+    const masterName = booking.master.nickname || `${booking.master.firstName} ${booking.master.lastName || ''}`.trim();
     const dateStr = booking.date.toISOString().split('T')[0];
 
     // Определяем кто отменил

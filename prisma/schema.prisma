@@ -123,6 +123,10 @@ model Booking {
   notes     String?
   createdAt DateTime      @default(now()) @map("created_at")
   updatedAt DateTime      @updatedAt @map("updated_at")
+  
+  // Флаги отправленных напоминаний
+  reminder24hSent Boolean @default(false) @map("reminder_24h_sent")
+  reminder2hSent  Boolean @default(false) @map("reminder_2h_sent")
 
   // Клиент
   clientId  Int           @map("client_id")

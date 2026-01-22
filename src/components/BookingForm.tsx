@@ -195,9 +195,16 @@ export function BookingForm({ service, onBack, onSubmit }: BookingFormProps) {
 
           {/* "Any master" toggle */}
           <div className="mb-6">
-            <label className="flex items-center gap-3 cursor-pointer p-4 rounded-xl border-2 border-gray-200 hover:border-amber-300 transition-all">
+            <button
+              type="button"
+              onClick={handleAnyMasterToggle}
+              className={cn(
+                "w-full flex items-center gap-3 cursor-pointer p-4 rounded-xl border-2 transition-all text-left",
+                anyMaster ? "border-amber-500 bg-amber-50" : "border-gray-200 hover:border-amber-300"
+              )}
+            >
               <div className={cn(
-                'relative w-12 h-6 rounded-full transition-colors',
+                'relative w-12 h-6 rounded-full transition-colors flex-shrink-0',
                 anyMaster ? 'bg-amber-500' : 'bg-gray-300'
               )}>
                 <div className={cn(
@@ -209,7 +216,7 @@ export function BookingForm({ service, onBack, onSubmit }: BookingFormProps) {
                 <Users className="h-5 w-5 text-gray-500" />
                 <span className="font-medium">Любой мастер</span>
               </div>
-            </label>
+            </button>
             <p className="text-xs text-gray-500 mt-2 ml-1">
               Система автоматически выберет свободного мастера
             </p>

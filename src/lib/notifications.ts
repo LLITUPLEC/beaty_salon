@@ -198,6 +198,39 @@ export async function notifyClientBookingCancelled(params: {
   });
 }
 
+/**
+ * Уведомление-напоминание клиенту о предстоящей записи
+ */
+export async function notifyClientBookingReminder(params: {
+  clientTelegramId: bigint;
+  masterName: string;
+  serviceName: string;
+  date: string;
+  time: string;
+  hoursLeft: number;
+}): Promise<boolean> {
+  const timeWord = params.hoursLeft === 24 ? 'завтра' : 'через 2 часа';
+  const emoji = params.hoursLeft === 24 ? '📅' : '⏰';
+  
+  const text = `
+${emoji} *Напоминание о записи!*
+
+Ваш визит ${timeWord}:
+
+💇 Услуга: ${params.serviceName}
+👤 Мастер: ${params.masterName}
+📅 Дата: ${formatDate(params.date)}
+⏰ Время: ${params.time}
+
+Ждём вас! 💅
+  `.trim();
+
+  return sendTelegramMessage({
+    chatId: params.clientTelegramId.toString(),
+    text,
+  });
+}
+
 // ============ Уведомления для мастера ============
 
 /**

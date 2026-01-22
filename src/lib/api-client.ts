@@ -338,12 +338,42 @@ export async function getSchedules(filters?: {
 }
 
 export async function createSchedule(data: {
-  masterId: number;
-  date: string;
+  masterId?: number;
+  masterIds?: number[];
+  date?: string;
+  dates?: string[];
   startTime: string;
   endTime: string;
 }) {
-  return apiFetch<{ id: number; message: string }>('/admin/schedule', {
+  return apiFetch<{ created: number; updated: number; message: string }>('/admin/schedule', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateSchedule(data: {
+  id: number;
+  startTime?: string;
+  endTime?: string;
+}) {
+  return apiFetch<ScheduleData>('/admin/schedule', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteSchedule(id: number) {
+  return apiFetch<{ message: string }>(`/admin/schedule?id=${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function copySchedules(data: {
+  scheduleIds: number[];
+  targetDates: string[];
+}) {
+  // Для копирования сначала получим данные смен, потом создадим новые
+  return apiFetch<{ created: number; updated: number; message: string }>('/admin/schedule', {
     method: 'POST',
     body: JSON.stringify(data),
   });

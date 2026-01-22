@@ -211,10 +211,12 @@ export async function POST(request: NextRequest) {
       }
 
       const minCount = Math.min(...available.map(m => m.count));
-      const selected = available.find(m => m.count === minCount);
+      // Если несколько мастеров с одинаковым минимумом - выбираем случайного
+      const minCountMasters = available.filter(m => m.count === minCount);
+      const selected = minCountMasters[Math.floor(Math.random() * minCountMasters.length)];
       
-      selectedMasterId = selected!.masterId;
-      selectedMaster = selected!.master;
+      selectedMasterId = selected.masterId;
+      selectedMaster = selected.master;
     } else {
       if (!masterId) {
         return errorResponse('INVALID_DATA', 'masterId is required when anyMaster is false');
