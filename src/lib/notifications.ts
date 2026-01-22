@@ -312,3 +312,30 @@ export async function notifyAdminNewBooking(params: {
   });
 }
 
+/**
+ * Уведомление админу о новом пользователе
+ */
+export async function notifyAdminNewUser(params: {
+  adminTelegramId: bigint;
+  userName: string;
+  userTelegramId: bigint;
+  username: string | null;
+}): Promise<boolean> {
+  const usernameStr = params.username ? `@${params.username}` : 'не указан';
+  
+  const text = `
+👋 *Новый пользователь!*
+
+👤 Имя: ${params.userName}
+🆔 Telegram ID: \`${params.userTelegramId}\`
+📱 Username: ${usernameStr}
+
+Всего пользователей в системе: ожидайте обновления статистики.
+  `.trim();
+
+  return sendTelegramMessage({
+    chatId: params.adminTelegramId.toString(),
+    text,
+  });
+}
+

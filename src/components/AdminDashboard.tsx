@@ -12,7 +12,10 @@ import {
   Loader2,
   Trash2,
   Edit,
-  FolderPlus
+  FolderPlus,
+  Check,
+  X,
+  CheckCircle
 } from 'lucide-react';
 import { Header } from './ui/Header';
 import { Tabs, TabContent } from './ui/Tabs';
@@ -37,8 +40,12 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
+  createService,
+  updateService,
+  deleteService,
   assignServiceToMaster,
   removeServiceFromMaster,
+  updateBookingStatus,
   BookingData,
   MasterData,
   ScheduleData,
@@ -86,6 +93,13 @@ export function AdminDashboard() {
   // Services management
   const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
   const [selectedMasterForService, setSelectedMasterForService] = useState<string>('');
+  
+  // Service form
+  const [newServiceName, setNewServiceName] = useState('');
+  const [newServiceCategory, setNewServiceCategory] = useState<number | null>(null);
+  const [newServicePrice, setNewServicePrice] = useState('');
+  const [newServiceDuration, setNewServiceDuration] = useState('60');
+  const [editingService, setEditingService] = useState<ServiceData | null>(null);
   
   // Booking filters
   const [fromDate, setFromDate] = useState(new Date().toISOString().split('T')[0]);
@@ -371,6 +385,118 @@ export function AdminDashboard() {
     }
   };
 
+  const handleAddService = async () => {
+    if (!newServiceName.trim() || !newServiceCategory || !newServicePrice) {
+      await showAlert('Заполните все обязательные поля');
+      return;
+    }
+
+    const result = await createService({
+      name: newServiceName.trim(),
+      categoryId: newServiceCategory,
+      price: parseInt(newServicePrice),
+      duration: parseInt(newServiceDuration) || 60,
+    });
+
+    if (result.success) {
+      hapticFeedback('success');
+      await loadData();
+      setNewServiceName('');
+      setNewServiceCategory(null);
+      setNewServicePrice('');
+      setNewServiceDuration('60');
+      await showAlert('Услуга добавлена!');
+    } else {
+      await showAlert(result.error?.message || 'Ошибка при добавлении услуги');
+    }
+  };
+
+  const handleUpdateService = async () => {
+    if (!editingService) return;
+
+    const result = await updateService(editingService.id, {
+      name: editingService.name,
+      categoryId: editingService.categoryId,
+      price: editingService.price,
+      duration: editingService.duration,
+    });
+
+    if (result.success) {
+      hapticFeedback('success');
+      setEditingService(null);
+      await loadData();
+      await showAlert('Услуга обновлена');
+    } else {
+      await showAlert(result.error?.message || 'Ошибка при обновлении');
+    }
+  };
+
+  const handleDeleteService = async (service: ServiceData) => {
+    const confirmed = await showConfirm(`Удалить услугу "${service.name}"?`);
+    if (!confirmed) return;
+
+    const result = await deleteService(service.id);
+
+    if (result.success) {
+      hapticFeedback('success');
+      await loadData();
+      await showAlert('Услуга удалена');
+    } else {
+      await showAlert(result.error?.message || 'Ошибка при удалении');
+    }
+  };
+
+  const handleConfirmBooking = async (bookingId: number) => {
+    const result = await updateBookingStatus(bookingId, 'confirmed');
+    if (result.success) {
+      hapticFeedback('success');
+      setBookings(
+        bookings.map((b) =>
+          b.id === bookingId ? { ...b, status: 'confirmed' as const } : b
+        )
+      );
+      await showAlert('Запись подтверждена!');
+    } else {
+      await showAlert(result.error?.message || 'Ошибка');
+    }
+  };
+
+  const handleRejectBooking = async (bookingId: number) => {
+    const confirmed = await showConfirm('Отклонить эту запись?');
+    if (!confirmed) return;
+
+    const result = await updateBookingStatus(bookingId, 'cancelled');
+    if (result.success) {
+      hapticFeedback('warning');
+      setBookings(
+        bookings.map((b) =>
+          b.id === bookingId ? { ...b, status: 'cancelled' as const } : b
+        )
+      );
+      await showAlert('Запись отклонена');
+    } else {
+      await showAlert(result.error?.message || 'Ошибка');
+    }
+  };
+
+  const handleCompleteBooking = async (bookingId: number) => {
+    const confirmed = await showConfirm('Отметить запись как завершённую?');
+    if (!confirmed) return;
+
+    const result = await updateBookingStatus(bookingId, 'completed');
+    if (result.success) {
+      hapticFeedback('success');
+      setBookings(
+        bookings.map((b) =>
+          b.id === bookingId ? { ...b, status: 'completed' as const } : b
+        )
+      );
+      await showAlert('Запись завершена');
+    } else {
+      await showAlert(result.error?.message || 'Ошибка');
+    }
+  };
+
   const handleCreateSchedule = async () => {
     if (!scheduleForm.masterId || !scheduleForm.date) return;
 
@@ -557,7 +683,7 @@ export function AdminDashboard() {
                         </div>
                         <StatusBadge status={booking.status} />
                       </div>
-                      <div className="flex items-center gap-4 text-gray-500 text-sm">
+                      <div className="flex items-center gap-4 text-gray-500 text-sm mb-3">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
                           <span>{formatDate(booking.date)}</span>
@@ -567,6 +693,49 @@ export function AdminDashboard() {
                           <span>{booking.time}</span>
                         </div>
                       </div>
+                      
+                      {/* Кнопки управления записью */}
+                      {booking.status === 'pending' && (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleConfirmBooking(booking.id)}
+                          >
+                            <Check className="h-4 w-4 mr-1" />
+                            Подтвердить
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRejectBooking(booking.id)}
+                            className="text-red-500 border-red-200 hover:bg-red-50"
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Отклонить
+                          </Button>
+                        </div>
+                      )}
+                      {booking.status === 'confirmed' && (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleCompleteBooking(booking.id)}
+                            className="bg-green-500 hover:bg-green-600"
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Завершить
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRejectBooking(booking.id)}
+                            className="text-red-500 border-red-200 hover:bg-red-50"
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Отменить
+                          </Button>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))
@@ -752,6 +921,113 @@ export function AdminDashboard() {
         {/* Services tab */}
         {activeTab === 'services' && (
           <TabContent>
+            {/* Форма добавления услуги */}
+            <Card className="mb-6">
+              <CardContent>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  <Plus className="h-5 w-5 inline mr-2" />
+                  Добавить услугу
+                </h3>
+                <div className="space-y-3">
+                  <Input
+                    label="Название услуги"
+                    placeholder="Например: Стрижка мужская"
+                    value={newServiceName}
+                    onChange={(e) => setNewServiceName(e.target.value)}
+                  />
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <Select
+                      label="Категория"
+                      options={categories.map(c => ({ value: c.id, label: c.name }))}
+                      value={newServiceCategory || ''}
+                      onChange={(e) => setNewServiceCategory(Number(e.target.value) || null)}
+                      placeholder="Выберите"
+                    />
+                    <Input
+                      label="Цена (₽)"
+                      type="number"
+                      placeholder="1500"
+                      value={newServicePrice}
+                      onChange={(e) => setNewServicePrice(e.target.value)}
+                    />
+                    <Input
+                      label="Длительность (мин)"
+                      type="number"
+                      placeholder="60"
+                      value={newServiceDuration}
+                      onChange={(e) => setNewServiceDuration(e.target.value)}
+                    />
+                  </div>
+                  <Button onClick={handleAddService} className="w-full">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Добавить услугу
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Редактирование услуги */}
+            {editingService && (
+              <Card className="mb-6 border-amber-500 border-2">
+                <CardContent>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Редактирование услуги
+                  </h3>
+                  <div className="space-y-3">
+                    <Input
+                      label="Название"
+                      value={editingService.name}
+                      onChange={(e) => setEditingService({
+                        ...editingService,
+                        name: e.target.value
+                      })}
+                    />
+                    <div className="grid grid-cols-3 gap-3">
+                      <Select
+                        label="Категория"
+                        options={categories.map(c => ({ value: c.id, label: c.name }))}
+                        value={editingService.categoryId}
+                        onChange={(e) => setEditingService({
+                          ...editingService,
+                          categoryId: Number(e.target.value)
+                        })}
+                      />
+                      <Input
+                        label="Цена (₽)"
+                        type="number"
+                        value={editingService.price}
+                        onChange={(e) => setEditingService({
+                          ...editingService,
+                          price: Number(e.target.value)
+                        })}
+                      />
+                      <Input
+                        label="Длительность (мин)"
+                        type="number"
+                        value={editingService.duration}
+                        onChange={(e) => setEditingService({
+                          ...editingService,
+                          duration: Number(e.target.value)
+                        })}
+                      />
+                    </div>
+                    <div className="flex gap-3">
+                      <Button onClick={handleUpdateService} className="flex-1">
+                        Сохранить
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setEditingService(null)}
+                      >
+                        Отмена
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Назначение услуги мастеру */}
             <Card className="mb-6">
               <CardContent>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
@@ -788,14 +1064,14 @@ export function AdminDashboard() {
 
             <div className="space-y-3">
               <h3 className="text-lg font-semibold text-gray-900">
-                Все услуги и их мастера
+                Все услуги ({services.length})
               </h3>
               {services.length === 0 ? (
                 <div className="text-center py-12">
                   <Scissors className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-500">Нет услуг</p>
                   <p className="text-sm text-gray-400 mt-2">
-                    Мастера с разрешением могут создавать услуги
+                    Добавьте услугу с помощью формы выше
                   </p>
                 </div>
               ) : (
@@ -813,6 +1089,23 @@ export function AdminDashboard() {
                           <p className="text-sm text-amber-600">
                             {service.price} ₽ • {service.duration} мин
                           </p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingService(service)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteService(service)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                       <div className="mt-3">

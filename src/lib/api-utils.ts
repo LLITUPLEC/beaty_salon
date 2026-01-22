@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyTelegramWebAppData, parseInitData } from './telegram-auth';
 import prisma from './prisma';
 import { UserRole } from '@prisma/client';
+import { notifyAdminNewUser } from './notifications';
 
 // Admin Telegram ID из env
 const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID 
@@ -81,6 +82,13 @@ export async function authenticateUser(request: NextRequest): Promise<AuthResult
   // Определяем роль: админ если telegram_id совпадает
   const isAdmin = telegramId === ADMIN_TELEGRAM_ID;
 
+  // Проверяем, существует ли пользователь
+  const existingUser = await prisma.user.findUnique({
+    where: { telegramId }
+  });
+
+  const isNewUser = !existingUser;
+
   // Ищем или создаем пользователя
   const user = await prisma.user.upsert({
     where: { telegramId },
@@ -101,6 +109,17 @@ export async function authenticateUser(request: NextRequest): Promise<AuthResult
       role: isAdmin ? UserRole.ADMIN : UserRole.CLIENT,
     },
   });
+
+  // Уведомляем админа о новом пользователе (если это не сам админ)
+  if (isNewUser && !isAdmin) {
+    const userName = `${tgUser.first_name} ${tgUser.last_name || ''}`.trim();
+    notifyAdminNewUser({
+      adminTelegramId: ADMIN_TELEGRAM_ID,
+      userName,
+      userTelegramId: telegramId,
+      username: tgUser.username || null,
+    }).catch(err => console.error('Error notifying admin about new user:', err));
+  }
 
   return {
     success: true,
