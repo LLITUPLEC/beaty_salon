@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Beauty Salon — презентация</title>
+    <meta name="description" content="Краткая презентация Салоны красоты/Парикмахерской" />
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #64748b;
+        --accent: #f59e0b;
+        --accent-strong: #d97706;
+        --line: #e2e8f0;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        -webkit-font-smoothing: antialiased;
+        padding-bottom: 76px;
+      }
+      .deck {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+      }
+      .brand .logo {
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #f59e0b, #fcd34d);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-weight: 800;
+      }
+      .meta {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .slide {
+        display: none;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 22px;
+        min-height: 68vh;
+        box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
+      }
+      .slide.active { display: block; animation: fade 220ms ease; }
+      @keyframes fade { from { opacity: 0.6; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 700;
+      }
+      h1, h2 {
+        margin: 8px 0 12px;
+        line-height: 1.1;
+      }
+      h1 { font-size: 28px; }
+      h2 { font-size: 22px; }
+      p { margin: 0 0 12px; color: var(--muted); }
+      ul { margin: 10px 0 0 0; padding-left: 18px; color: var(--text); }
+      li { margin: 6px 0; }
+      .highlight {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #92400e;
+        padding: 8px 12px;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 14px;
+        display: inline-block;
+        margin-top: 6px;
+      }
+      .grid {
+        display: grid;
+        gap: 12px;
+      }
+      .grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        background: #fff;
+      }
+      .card h3 {
+        margin: 0 0 6px;
+        font-size: 15px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: #7c2d12;
+        background: #ffedd5;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-weight: 600;
+      }
+      .cta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .btn {
+        border: none;
+        border-radius: 999px;
+        padding: 12px 16px;
+        font-weight: 700;
+        font-size: 14px;
+        cursor: pointer;
+        background: var(--accent);
+        color: #fff;
+        text-decoration: none;
+      }
+      .btn.secondary {
+        background: #fff;
+        color: var(--accent-strong);
+        border: 1px solid #fcd34d;
+      }
+      .nav {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.95);
+        border-top: 1px solid var(--line);
+        padding: 10px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        backdrop-filter: blur(8px);
+      }
+      .nav button {
+        border: 1px solid var(--line);
+        background: #fff;
+        color: var(--text);
+        border-radius: 12px;
+        padding: 10px 14px;
+        font-weight: 600;
+      }
+      .nav button.primary {
+        background: var(--accent);
+        color: #fff;
+        border-color: #fcd34d;
+      }
+      .progress {
+        height: 4px;
+        background: #e2e8f0;
+        border-radius: 999px;
+        overflow: hidden;
+        margin: 10px 0 0;
+      }
+      .progress > span {
+        display: block;
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #f59e0b, #fcd34d);
+        transition: width 200ms ease;
+      }
+      .dots {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        border: none;
+        background: #cbd5f5;
+        opacity: 0.6;
+      }
+      .dot.active { background: var(--accent); opacity: 1; }
+      .kpi {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .kpi span {
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        padding: 6px 10px;
+        border-radius: 10px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .screenshots {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .screenshot {
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        background: #fff;
+      }
+      .screenshot img {
+        width: 100%;
+        height: auto;
+        display: block;
+        object-fit: cover;
+      }
+      .screenshots.single {
+        grid-template-columns: 1fr;
+        max-width: 320px;
+        margin: 14px auto 0;
+      }
+      .screenshots.double {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .screenshots.triple {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      @media (max-width: 720px) {
+        .grid.cols-3, .grid.cols-2 { grid-template-columns: 1fr; }
+        h1 { font-size: 24px; }
+        h2 { font-size: 20px; }
+        .slide { min-height: 64vh; padding: 18px; }
+        .nav { padding: 10px; }
+        .screenshots {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 8px;
+        }
+        .screenshots.single {
+          max-width: 100%;
+        }
+        .screenshots.triple {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .screenshots.double {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="deck">
+      <header>
+        <div class="brand">
+          <div class="logo">BS</div>
+          <div>
+            <div>Beauty Salon</div>
+            <div class="meta">Краткая презентация Салоны красоты/Парикмахерской</div>
+          </div>
+        </div>
+        <div class="meta" id="counter">1/9</div>
+      </header>
+
+      <section class="slide active">
+        <div class="eyebrow">Цифровизация салона</div>
+        <h1>Beauty Salon — система управления салоном в Telegram</h1>
+        <p>Записи, мастера, услуги, уведомления и аналитика — без бумажной волокиты, звонков и ручных правок.</p>
+        <div class="highlight">Мобильный формат · работает на смартфоне · без установки</div>
+        <div class="cta">
+          <a class="btn" href="https://prokrust-game.ru" target="_blank" rel="noopener">Открыть демо</a>
+          <!--- <button class="btn secondary" id="jump-demo">Перейти к демо</button> -->
+        </div>
+        <div class="progress"><span id="progress"></span></div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">Проблема рынка</div>
+        <h2>Бумага, звонки и журналы тормозят рост</h2>
+        <ul>
+          <li>Записи ведутся вручную: ошибки, пересечения, потерянные контакты.</li>
+          <li>Постоянные звонки и переписывания расписания.</li>
+          <li>Нет прозрачной статистики, контроля загрузки и выручки.</li>
+          <li>Правки и отмены — это «работа корректором» вместо управления бизнесом.</li>
+        </ul>
+        <div class="kpi">
+          <span>+ время администратора</span>
+          <span>+ риск ошибок</span>
+          <span>− контроль качества</span>
+        </div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">Решение</div>
+        <h2>Единое окно управления салоном</h2>
+        <p>Web App + Telegram-бот — клиенты записываются сами, мастера подтверждают, админ видит всё.</p>
+        <div class="grid cols-3">
+          <div class="card">
+            <h3>Клиент</h3>
+            <p>Запись 24/7 без звонков, выбор услуги и времени в пару кликов.</p>
+          </div>
+          <div class="card">
+            <h3>Мастер</h3>
+            <p>Мгновенные уведомления, подтверждение записи, расписание.</p>
+          </div>
+          <div class="card">
+            <h3>Админ</h3>
+            <p>Управление услугами, мастерами, расписанием и отчётами.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">Демо — клиент</div>
+        <h2>Как клиент записывается</h2>
+        <div class="card">
+          <ol>
+            <li>Выбирает категорию и услугу.</li>
+            <li>Включает «Любой мастер» или выбирает конкретного.</li>
+            <li>Система показывает свободные слоты.</li>
+            <li>Запись создана → уведомление клиенту и мастеру.</li>
+          </ol>
+        </div>
+        <div class="screenshots">
+          <div class="screenshot"><img src="/screen/Client_1.jpg" alt="Клиент: выбор услуги" loading="lazy" /></div>
+          <div class="screenshot"><img src="/screen/Client_2.jpg" alt="Клиент: запись на услугу" loading="lazy" /></div>
+          <div class="screenshot"><img src="/screen/Client_3.jpg" alt="Клиент: мои записи" loading="lazy" /></div>
+          <div class="screenshot"><img src="/screen/Client_4.jpg" alt="Клиент: активные записи" loading="lazy" /></div>
+        </div>
+        <div class="badge">Без звонков · без администратора</div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">Демо — мастер</div>
+        <h2>Как мастер управляет записями</h2>
+        <div class="card">
+          <ul>
+            <li>Получает уведомление о новой записи.</li>
+            <li>Подтверждает или отменяет в 1 клик.</li>
+            <li>Клиент автоматически получает ответ.</li>
+            <li>Видит своё расписание и смены.</li>
+          </ul>
+        </div>
+        <div class="screenshots double">
+          <div class="screenshot"><img src="/screen/Master_1.jpg" alt="Мастер: управление записями" loading="lazy" /></div>
+          <div class="screenshot"><img src="/screen/Master_2.jpg" alt="Мастер: расписание" loading="lazy" /></div>
+        </div>
+        <div class="badge">Быстро · прозрачно · без лишних звонков</div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">Демо — админ</div>
+        <h2>Админ-панель в одном экране</h2>
+        <div class="grid cols-2">
+          <div class="card">
+            <h3>Расписание</h3>
+            <p>Календарь смен, массовое создание, копирование.</p>
+          </div>
+          <div class="card">
+            <h3>Услуги и мастера</h3>
+            <p>Назначение услуг мастерам, редактирование, права.</p>
+          </div>
+          <div class="card">
+            <h3>Записи</h3>
+            <p>Фильтры, статусы, контроль подтверждений.</p>
+          </div>
+          <div class="card">
+            <h3>Отчёты</h3>
+            <p>Выручка, загрузка, популярные услуги.</p>
+          </div>
+        </div>
+        <div class="screenshots triple">
+          <div class="screenshot"><img src="/screen/Admin_1.jpg" alt="Админ: записи" loading="lazy" /></div>
+          <div class="screenshot"><img src="/screen/Admin_2.jpg" alt="Админ: мастера" loading="lazy" /></div>
+          <div class="screenshot"><img src="/screen/Admin_3.jpg" alt="Админ: услуги" loading="lazy" /></div>
+          <div class="screenshot"><img src="/screen/Admin_4.jpg" alt="Админ: категории" loading="lazy" /></div>
+          <div class="screenshot"><img src="/screen/Admin_5.jpg" alt="Админ: расписание" loading="lazy" /></div>
+          <div class="screenshot"><img src="/screen/Admin_6.jpg" alt="Админ: отчёты" loading="lazy" /></div>
+        </div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">Эффект для бизнеса</div>
+        <h2>Экономия времени + рост выручки</h2>
+        <ul>
+          <li>Меньше «ручной работы» — админ занят продажами, а не журналом.</li>
+          <li>Снижение ошибок и пересечений в расписании.</li>
+          <li>Напоминания за 24ч и 2ч уменьшают no-show.</li>
+          <li>Умный подбор мастера повышает загрузку.</li>
+        </ul>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">Отличие от бумаги</div>
+        <h2>Мы убираем всё лишнее</h2>
+        <ul>
+          <li>Нет бумажных журналов и ручных исправлений.</li>
+          <li>Нет звонков для подтверждения — всё автоматизировано.</li>
+          <li>Нет «потерянных записей» — единая база.</li>
+          <li>Есть прозрачные отчёты и контроль качества.</li>
+        </ul>
+        <div class="highlight">Готово к масштабированию на 5+ мастеров и несколько филиалов</div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">Готовность</div>
+        <h2>Можно запускать пилот</h2>
+        <ul>
+          <li>Система уже работает, готова к развёртыванию.</li>
+          <li>Интерфейс адаптирован под смартфоны. ‼️ Возможен редизайн</li>
+          <li>Запуск пилота — 3–5 дней.</li>
+        </ul>
+        <div class="cta">
+          <a class="btn" href="https://prokrust-game.ru" target="_blank" rel="noopener">Посмотреть демо</a>
+          <a class="btn secondary" href="mailto:tminn91@mail.ru">Связаться</a>
+        </div>
+      </section>
+    </div>
+
+    <div class="nav">
+      <button id="prev">Назад</button>
+      <div class="dots" id="dots"></div>
+      <button id="next" class="primary">Далее</button>
+    </div>
+
+    <script>
+      const slides = Array.from(document.querySelectorAll('.slide'));
+      const dotsContainer = document.getElementById('dots');
+      const counter = document.getElementById('counter');
+      const progress = document.getElementById('progress');
+      const jumpDemo = document.getElementById('jump-demo');
+      let index = 0;
+
+      function updateDots() {
+        dotsContainer.innerHTML = '';
+        slides.forEach((_, i) => {
+          const dot = document.createElement('button');
+          dot.className = 'dot' + (i === index ? ' active' : '');
+          dot.addEventListener('click', () => show(i));
+          dotsContainer.appendChild(dot);
+        });
+      }
+
+      function show(i, updateHash = true) {
+        index = Math.max(0, Math.min(slides.length - 1, i));
+        slides.forEach((slide, sIdx) => {
+          slide.classList.toggle('active', sIdx === index);
+        });
+        counter.textContent = (index + 1) + '/' + slides.length;
+        progress.style.width = ((index + 1) / slides.length * 100) + '%';
+        updateDots();
+        if (updateHash) {
+          history.replaceState(null, '', '#' + (index + 1));
+        }
+      }
+
+      function next() { show(index + 1); }
+      function prev() { show(index - 1); }
+
+      document.getElementById('next').addEventListener('click', next);
+      document.getElementById('prev').addEventListener('click', prev);
+      jumpDemo.addEventListener('click', () => show(3));
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight') next();
+        if (e.key === 'ArrowLeft') prev();
+      });
+
+      let touchStartX = 0;
+      let touchStartY = 0;
+      document.addEventListener('touchstart', (e) => {
+        const t = e.touches[0];
+        touchStartX = t.clientX;
+        touchStartY = t.clientY;
+      }, { passive: true });
+      document.addEventListener('touchend', (e) => {
+        const t = e.changedTouches[0];
+        const dx = t.clientX - touchStartX;
+        const dy = t.clientY - touchStartY;
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+          if (dx < 0) next();
+          else prev();
+        }
+      }, { passive: true });
+
+      const fromHash = parseInt(location.hash.replace('#', ''), 10);
+      if (!isNaN(fromHash) && fromHash >= 1 && fromHash <= slides.length) {
+        show(fromHash - 1, false);
+      } else {
+        show(0, false);
+      }
+    </script>
+  </body>
+</html>
+
