@@ -653,16 +653,16 @@
       const lightboxNext = document.getElementById('lightbox-next');
       const lightboxCounter = document.getElementById('lightbox-counter');
       
-      let allScreenshots: HTMLImageElement[] = [];
+      let allScreenshots = [];
       let currentScreenshotIndex = 0;
 
       // Собираем все скриншоты со всех слайдов
       function collectScreenshots() {
-        allScreenshots = Array.from(document.querySelectorAll('.screenshot img')) as HTMLImageElement[];
+        allScreenshots = Array.from(document.querySelectorAll('.screenshot img'));
       }
 
       // Открываем lightbox
-      function openLightbox(img: HTMLImageElement) {
+      function openLightbox(img) {
         collectScreenshots();
         currentScreenshotIndex = allScreenshots.indexOf(img);
         if (currentScreenshotIndex === -1) currentScreenshotIndex = 0;
@@ -717,10 +717,10 @@
 
       // Добавляем обработчики кликов на скриншоты
       document.addEventListener('click', (e) => {
-        const target = e.target as HTMLElement;
+        const target = e.target;
         const screenshot = target.closest('.screenshot');
         if (screenshot) {
-          const img = screenshot.querySelector('img') as HTMLImageElement;
+          const img = screenshot.querySelector('img');
           if (img) {
             e.preventDefault();
             openLightbox(img);
